@@ -1,49 +1,74 @@
-import { memo } from 'react'
+/**
+ * TextNode — LibTV-style inline text holder.
+ *
+ * Passive node: no execution, just a piece of text (role-tagged) that
+ * flows down to other nodes via text-out. Content is editable inline.
+ */
+import { memo, useCallback } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { FileText } from 'lucide-react'
+import { FileText, ScrollText, Pencil, Megaphone, MessagesSquare } from 'lucide-react'
 
-const ROLE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  script: { bg: 'bg-amber-500/10', text: 'text-amber-600', border: 'border-amber-500' },
-  prompt: { bg: 'bg-cyan-500/10', text: 'text-cyan-600', border: 'border-cyan-500' },
-  narration: { bg: 'bg-indigo-500/10', text: 'text-indigo-600', border: 'border-indigo-500' },
-  dialogue: { bg: 'bg-pink-500/10', text: 'text-pink-600', border: 'border-pink-500' },
+import { useFlowStore } from '@/store/flowStore'
+import { NodeShell } from '@/components/nodes/_shell'
+
+const ROLE_META: Record<string, { label: string; icon: typeof FileText }> = {
+  script:    { label: '脚本',   icon: ScrollText },
+  prompt:    { label: '提示词', icon: Pencil },
+  narration: { label: '旁白',   icon: Megaphone },
+  dialogue:  { label: '对话',   icon: MessagesSquare },
 }
 
-const ROLE_LABELS: Record<string, string> = {
-  script: '脚本',
-  prompt: '提示词',
-  narration: '旁白',
-  dialogue: '对话',
-}
-
-function TextNode({ data, selected }: NodeProps) {
+function TextNode({ id, data }: NodeProps) {
   const role = (data.role as string) || 'script'
-  const colors = ROLE_COLORS[role] || ROLE_COLORS.script
+  const roleMeta = ROLE_META[role] || ROLE_META.script
+  const label = (data.label as string) || '文本'
+  const content = (data.content as string) || ''
+
+  const updateNodeData = useFlowStore(s => s.updateNodeData)
+  const nodes = useFlowStore(s => s.nodes)
+
+  const handleContentChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    updateNodeData(id, { content: e.target.value })
+  }, [id, updateNodeData])
+
+  const handleGhostConnect = useCallback((side: 'left' | 'right') => {
+    const self = nodes.find(n => n.id === id)
+    if (!self) return
+    const offset = side === 'left' ? -300 : 300
+    const position = { x: (self.position?.x ?? 0) + offset, y: self.position?.y ?? 0 }
+    window.dispatchEvent(new CustomEvent('libtv-ghost-connect', {
+      detail: { sourceNodeId: id, side, position },
+    }))
+  }, [nodes, id])
+
+  const RoleIcon = roleMeta.icon
 
   return (
-    <div className={`workflow-node bg-card border-2 rounded-xl shadow-lg w-[240px] ${
-      selected ? colors.border : 'border-border'
-    }`}>
-      <Handle type="target" position={Position.Left} id="text-in" className={`!w-3 !h-3 !bg-amber-500`} />
-
-      <div className={`flex items-center gap-2 px-4 py-3 ${colors.bg} rounded-t-xl border-b border-border`}>
-        <FileText className={`w-4 h-4 ${colors.text}`} />
-        <span className="font-semibold text-sm">{(data.label as string) || '文本'}</span>
-        <span className={`text-xs ml-auto px-1.5 py-0.5 rounded ${colors.bg} ${colors.text} font-medium`}>
-          {ROLE_LABELS[role]}
+    <NodeShell
+      icon={<RoleIcon size={11} strokeWidth={2.5} />}
+      label={label}
+      labelRight={
+        <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-[hsl(var(--libtv-chip-bg))] text-[hsl(var(--libtv-muted))]">
+          {roleMeta.label}
         </span>
-      </div>
+      }
+      width={280}
+      ghostConnect={{ left: true, right: true }}
+      onGhostConnect={handleGhostConnect}
+    >
+      <Handle type="target" position={Position.Left} id="text-in" />
+      <Handle type="source" position={Position.Right} id="text-out" />
 
       <div className="p-3">
-        <div className="bg-muted/50 rounded-md p-2 min-h-[60px]">
-          <p className="text-xs text-foreground whitespace-pre-wrap">
-            {(data.content as string) || '点击编辑内容...'}
-          </p>
-        </div>
+        <textarea
+          value={content}
+          onChange={handleContentChange}
+          placeholder="点击编辑内容…"
+          rows={4}
+          className="libtv-prompt min-h-[80px]"
+        />
       </div>
-
-      <Handle type="source" position={Position.Right} id="text-out" className={`!w-3 !h-3 !bg-amber-500`} />
-    </div>
+    </NodeShell>
   )
 }
 

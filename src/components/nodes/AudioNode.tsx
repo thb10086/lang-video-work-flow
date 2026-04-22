@@ -1,12 +1,27 @@
+/**
+ * AudioNode — LibTV-style text-to-speech node.
+ *
+ * Produces an audio clip from a text prompt. The "preview" is a compact
+ * waveform-shaped banner (we don't render actual FFT — just a suggestive
+ * animated bar row) that also hosts an inline <audio> player once an
+ * output is available.
+ */
 import { memo, useCallback, useMemo } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { Music, Play, Loader2 } from 'lucide-react'
+import {
+  Music, Mic, Sparkles, ChevronDown, AlertTriangle, Volume2,
+} from 'lucide-react'
+
 import { useFlowStore } from '@/store/flowStore'
 import { useBackendModels } from '@/hooks/useBackendModels'
 import { sanitizeOnModelSwitch } from '@/providers/paramSanitizer'
 import type { ParamField } from '@/providers/types'
 
-function AudioNode({ id, data, selected }: NodeProps) {
+import {
+  NodeShell, NodeToolbar, SubmitButton, ParamPopover,
+} from '@/components/nodes/_shell'
+
+function AudioNode({ id, data }: NodeProps) {
   const { models: backendAudioModels } = useBackendModels('audio')
   const audioModels = useMemo(() => {
     return backendAudioModels.map(m => ({ id: m.model_id, name: m.name }))
@@ -42,66 +57,151 @@ function AudioNode({ id, data, selected }: NodeProps) {
     updateNodeData(id, { text: e.target.value })
   }, [id, updateNodeData])
 
+  const isGenerating = status === 'generating'
+  const label = (data.label as string) || '音频生成'
+  const audioUrl = (data.outputAudioUrl || data.outputAudio) as string | undefined
+  const errorMsg = data.errorMsg ? String(data.errorMsg) : null
+  const currentModel = audioModels.find(m => m.id === modelId)
+
+  const handleGhostConnect = useCallback((side: 'left' | 'right') => {
+    const self = nodes.find(n => n.id === id)
+    if (!self) return
+    const offset = side === 'left' ? -320 : 320
+    const position = { x: (self.position?.x ?? 0) + offset, y: self.position?.y ?? 0 }
+    window.dispatchEvent(new CustomEvent('libtv-ghost-connect', {
+      detail: { sourceNodeId: id, side, position },
+    }))
+  }, [nodes, id])
+
+  const labelRightSlot = (
+    <div className="flex items-center gap-1">
+      {status === 'done' && <span className="text-[hsl(var(--success))]">✓</span>}
+      {status === 'error' && <AlertTriangle size={11} className="text-[hsl(var(--destructive))]" />}
+    </div>
+  )
+
   return (
-    <div className={`workflow-node bg-card border-2 rounded-xl shadow-lg w-[240px] ${
-      selected ? 'border-orange-500 shadow-orange-200' : 'border-border'
-    }`}>
-      <Handle type="target" position={Position.Left} id="text-in" className="!w-3 !h-3 !bg-orange-500" />
+    <NodeShell
+      icon={<Music size={11} strokeWidth={2.5} />}
+      label={label}
+      labelRight={labelRightSlot}
+      width={340}
+      executing={isGenerating}
+      ghostConnect={{ left: true, right: true }}
+      onGhostConnect={handleGhostConnect}
+    >
+      <Handle type="target" position={Position.Left} id="text-in" />
+      <Handle type="source" position={Position.Right} id="audio-out" />
 
-      <div className="flex items-center gap-2 px-4 py-3 bg-orange-500/10 rounded-t-xl border-b border-border">
-        <Music className="w-4 h-4 text-orange-500" />
-        <span className="font-semibold text-sm">{(data.label as string) || '音频生成'}</span>
-      </div>
-
-      <div className="p-3 space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">模型</span>
-          <select
-            value={modelId}
-            onChange={handleModelChange}
-            className="text-xs font-medium bg-orange-50 text-orange-700 px-2 py-1 rounded-md border border-orange-200 outline-none cursor-pointer hover:bg-orange-100 transition-colors"
-          >
-            {audioModels.map(m => (
-              <option key={m.id} value={m.id}>{m.name}</option>
-            ))}
-          </select>
+      <div className="p-3 space-y-2.5">
+        {/* ── WAVEFORM PREVIEW BANNER ── */}
+        <div className="libtv-preview h-20 flex items-center justify-center px-3" style={{ aspectRatio: 'auto' }}>
+          {audioUrl ? (
+            <audio src={audioUrl} controls className="w-full" />
+          ) : isGenerating ? (
+            <div className="flex items-end gap-0.5 h-10">
+              {Array.from({ length: 24 }).map((_, i) => (
+                <span
+                  key={i}
+                  className="w-[3px] rounded-full bg-[hsl(var(--libtv-accent)/0.8)] animate-pulse"
+                  style={{ height: `${30 + Math.abs(Math.sin(i * 0.6)) * 40}%`, animationDelay: `${i * 40}ms` }}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-[11px] text-[hsl(var(--libtv-muted))]">
+              <Volume2 size={14} />
+              <span>输入文本后点击 ↑ 生成语音</span>
+            </div>
+          )}
         </div>
 
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">声音</span>
-          <input
-            value={voice}
-            onChange={handleVoiceChange}
-            className="w-24 text-xs px-2 py-1 rounded-md border border-border bg-muted/30 outline-none focus:ring-1 focus:ring-orange-400"
-            placeholder="default"
-          />
-        </div>
-
+        {/* ── TEXT INPUT ── */}
         <textarea
           value={text}
           onChange={handleTextChange}
           placeholder="输入要转为语音的文本..."
-          rows={2}
-          className="w-full text-xs rounded-md border border-border bg-muted/30 p-2 resize-none focus:outline-none focus:ring-1 focus:ring-orange-400 placeholder:text-muted-foreground/50"
+          rows={3}
+          className="libtv-prompt"
         />
-      </div>
 
-      <div className="px-4 py-2 border-t border-border">
-        <button className={`w-full py-1.5 rounded-md text-xs font-medium flex items-center justify-center gap-1.5 ${
-          status === 'generating'
-            ? 'bg-yellow-100 text-yellow-700'
-            : 'bg-orange-500 text-white hover:bg-orange-600'
-        } transition-colors`}>
-          {status === 'generating' ? (
-            <><Loader2 className="w-3 h-3 animate-spin" /> 生成中...</>
-          ) : (
-            <><Play className="w-3 h-3" /> 生成音频</>
-          )}
-        </button>
-      </div>
+        {/* ── TOOLBAR ── */}
+        <NodeToolbar
+          left={
+            <>
+              <ParamPopover
+                align="start"
+                width={240}
+                trigger={({ toggle }) => (
+                  <button type="button" className="libtv-chip" onClick={toggle}>
+                    <Sparkles size={12} strokeWidth={2} className="text-[hsl(var(--libtv-accent))]" />
+                    <span className="truncate max-w-[100px]" title={currentModel?.name || modelId}>
+                      {currentModel?.name || modelId}
+                    </span>
+                    <ChevronDown size={11} strokeWidth={2} />
+                  </button>
+                )}
+              >
+                <div className="space-y-0.5 max-h-[220px] overflow-y-auto">
+                  {audioModels.length === 0 && (
+                    <div className="text-[11px] text-[hsl(var(--libtv-muted))] p-2">加载模型列表...</div>
+                  )}
+                  {audioModels.map(m => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => handleModelChange({ target: { value: m.id } } as React.ChangeEvent<HTMLSelectElement>)}
+                      className={`w-full text-left px-2 py-1.5 rounded-md text-[11px] transition-colors ${
+                        m.id === modelId
+                          ? 'bg-[hsl(var(--libtv-accent)/0.15)] text-[hsl(var(--libtv-accent))]'
+                          : 'hover:bg-[hsl(var(--libtv-chip-bg))]'
+                      }`}
+                    >
+                      {m.name}
+                    </button>
+                  ))}
+                </div>
+              </ParamPopover>
 
-      <Handle type="source" position={Position.Right} id="audio-out" className="!w-3 !h-3 !bg-orange-500" />
-    </div>
+              <ParamPopover
+                align="start"
+                width={220}
+                trigger={({ toggle }) => (
+                  <button type="button" className="libtv-chip" onClick={toggle}>
+                    <Mic size={12} strokeWidth={2} />
+                    <span>{voice || 'default'}</span>
+                    <ChevronDown size={11} strokeWidth={2} />
+                  </button>
+                )}
+              >
+                <div className="space-y-1.5">
+                  <div className="text-[11px] font-medium text-[hsl(var(--libtv-chip-fg))]">声音</div>
+                  <input
+                    value={voice}
+                    onChange={handleVoiceChange}
+                    placeholder="default"
+                    className="libtv-input"
+                  />
+                </div>
+              </ParamPopover>
+            </>
+          }
+          right={
+            <SubmitButton
+              onClick={() => { /* execution wired via runtime engine */ }}
+              disabled={!text.trim() || isGenerating}
+              loading={isGenerating}
+            />
+          }
+        />
+
+        {errorMsg && (
+          <div className="text-[10px] text-[hsl(var(--destructive))] bg-[hsl(var(--destructive)/0.08)] border border-[hsl(var(--destructive)/0.2)] rounded-lg px-2 py-1.5 break-all">
+            {errorMsg}
+          </div>
+        )}
+      </div>
+    </NodeShell>
   )
 }
 
