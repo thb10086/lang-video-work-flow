@@ -306,6 +306,289 @@
     0 0 0 1px hsl(var(--border) / 0.3);
 }
 
+/* ══════════════════════════════════════════════════════════
+   LibTV Node Design System
+   ══════════════════════════════════════════════════════════
+   Inspired by LiblibAI's LibTV (2026). Core principles:
+     - Chat-card node shape: preview 60% + input + toolbar
+     - No visible border; node blends into the canvas
+     - Handles invisible by default, visible on hover
+     - Rounded 14-20px radius; subtle inner glow on focus
+     - Toolbar bottom line with aggregated param badges
+*/
+
+:root {
+  --libtv-node-bg: 0 0% 100%;
+  --libtv-node-bg-elevated: 240 5% 97%;
+  --libtv-node-preview: 240 5% 94%;
+  --libtv-node-ring: 262 68% 54%;
+  --libtv-node-hairline: 240 4% 85%;
+  --libtv-node-radius: 16px;
+  --libtv-chip-bg: 240 5% 92%;
+  --libtv-chip-bg-hover: 240 5% 86%;
+  --libtv-chip-fg: 240 10% 20%;
+  --libtv-muted: 240 4% 50%;
+  --libtv-accent: 262 68% 54%;
+  --libtv-ghost-plus: 240 5% 80%;
+}
+
+.dark {
+  --libtv-node-bg: 240 8% 7%;
+  --libtv-node-bg-elevated: 240 7% 10%;
+  --libtv-node-preview: 240 8% 5%;
+  --libtv-node-ring: 262 68% 62%;
+  --libtv-node-hairline: 240 5% 22%;
+  --libtv-chip-bg: 240 5% 14%;
+  --libtv-chip-bg-hover: 240 5% 20%;
+  --libtv-chip-fg: 0 0% 92%;
+  --libtv-muted: 240 5% 55%;
+  --libtv-accent: 262 80% 72%;
+  --libtv-ghost-plus: 240 5% 30%;
+}
+
+/* Node shell — no border, no heavy shadow, all about content */
+.libtv-node {
+  background: hsl(var(--libtv-node-bg));
+  border-radius: var(--libtv-node-radius);
+  color: hsl(var(--foreground));
+  font-family: inherit;
+  position: relative;
+  transition: box-shadow 0.2s ease, transform 0.15s ease;
+  animation: node-appear 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.dark .libtv-node {
+  background: hsl(var(--libtv-node-bg));
+  box-shadow: 0 0 0 1px hsl(var(--libtv-node-hairline) / 0.4);
+}
+
+:root:not(.dark) .libtv-node {
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 0 0 1px hsl(var(--libtv-node-hairline) / 0.5);
+}
+
+/* Selected state: neon ring, not chunky border */
+.react-flow__node.selected .libtv-node {
+  box-shadow:
+    0 0 0 1.5px hsl(var(--libtv-node-ring)),
+    0 0 20px hsl(var(--libtv-node-ring) / 0.25);
+}
+
+/* Hover: very subtle lift */
+.react-flow__node:hover .libtv-node {
+  box-shadow: 0 0 0 1px hsl(var(--libtv-node-hairline) / 0.7), 0 8px 24px rgb(0 0 0 / 0.1);
+}
+.dark .react-flow__node:hover .libtv-node {
+  box-shadow: 0 0 0 1px hsl(var(--libtv-node-hairline) / 0.8), 0 12px 32px rgb(0 0 0 / 0.4);
+}
+
+/* Preview area shared style */
+.libtv-preview {
+  background: hsl(var(--libtv-node-preview));
+  border-radius: calc(var(--libtv-node-radius) - 4px);
+  position: relative;
+  overflow: hidden;
+}
+.dark .libtv-preview {
+  background: hsl(var(--libtv-node-preview));
+  box-shadow: inset 0 0 0 1px hsl(0 0% 100% / 0.03);
+}
+
+/* Chip (used in toolbar: model selector / param summary / language / count) */
+.libtv-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: hsl(var(--libtv-chip-bg));
+  color: hsl(var(--libtv-chip-fg));
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  transition: background 0.15s ease, color 0.15s ease;
+  cursor: pointer;
+  user-select: none;
+}
+.libtv-chip:hover {
+  background: hsl(var(--libtv-chip-bg-hover));
+}
+.libtv-chip--active {
+  background: hsl(var(--libtv-accent) / 0.15);
+  color: hsl(var(--libtv-accent));
+}
+.libtv-chip--ghost {
+  background: transparent;
+  color: hsl(var(--libtv-muted));
+}
+.libtv-chip--ghost:hover {
+  background: hsl(var(--libtv-chip-bg));
+  color: hsl(var(--libtv-chip-fg));
+}
+
+/* Mode tab (top of input area) */
+.libtv-tab {
+  padding: 5px 12px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 500;
+  color: hsl(var(--libtv-muted));
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+.libtv-tab:hover {
+  color: hsl(var(--foreground));
+  background: hsl(var(--libtv-chip-bg) / 0.6);
+}
+.libtv-tab--active {
+  background: hsl(var(--libtv-chip-bg));
+  color: hsl(var(--foreground));
+  font-weight: 600;
+}
+
+/* Ghost + connect button (sides of node) */
+.libtv-ghost-plus {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: hsl(var(--libtv-node-bg-elevated));
+  color: hsl(var(--libtv-muted));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.15s ease, color 0.15s ease;
+  z-index: 10;
+  box-shadow: 0 0 0 1px hsl(var(--libtv-node-hairline) / 0.6);
+}
+.react-flow__node:hover .libtv-ghost-plus,
+.libtv-ghost-plus:hover {
+  opacity: 1;
+}
+.libtv-ghost-plus:hover {
+  transform: translateY(-50%) scale(1.12);
+  color: hsl(var(--libtv-accent));
+}
+.libtv-ghost-plus--left { left: -13px; }
+.libtv-ghost-plus--right { right: -13px; }
+
+/* Handles: invisible by default (we use ghost-plus for connects),
+   but still clickable for power users who want the classic flow */
+.libtv-node .react-flow__handle {
+  width: 10px;
+  height: 10px;
+  background: hsl(var(--libtv-accent));
+  border: 2px solid hsl(var(--libtv-node-bg));
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.react-flow__node:hover .libtv-node .react-flow__handle,
+.libtv-node.libtv-node--connecting .react-flow__handle {
+  opacity: 1;
+}
+.libtv-node .react-flow__handle:hover {
+  transform: scale(1.4);
+  opacity: 1 !important;
+}
+
+/* Prompt textarea — big, quiet, no border */
+.libtv-prompt {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  color: hsl(var(--foreground));
+  font-size: 12px;
+  line-height: 1.55;
+  padding: 4px 0;
+}
+.libtv-prompt::placeholder {
+  color: hsl(var(--libtv-muted) / 0.7);
+}
+
+/* Popover (parameter drawer that rises from toolbar) */
+.libtv-popover {
+  position: absolute;
+  background: hsl(var(--libtv-node-bg-elevated));
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 1px hsl(var(--libtv-node-hairline) / 0.6),
+    0 20px 48px rgb(0 0 0 / 0.25);
+  padding: 14px;
+  z-index: 40;
+  animation: scale-in 0.15s cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: bottom center;
+}
+.dark .libtv-popover {
+  box-shadow:
+    0 0 0 1px hsl(var(--libtv-node-hairline) / 0.8),
+    0 20px 60px rgb(0 0 0 / 0.6);
+}
+
+/* Aspect-ratio grid cell — visual rectangle representing the ratio */
+.libtv-ratio-cell {
+  position: relative;
+  padding: 10px 6px 8px;
+  border-radius: 8px;
+  background: hsl(var(--libtv-chip-bg));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  min-width: 58px;
+}
+.libtv-ratio-cell:hover {
+  background: hsl(var(--libtv-chip-bg-hover));
+}
+.libtv-ratio-cell--active {
+  background: hsl(var(--libtv-accent) / 0.18);
+  box-shadow: inset 0 0 0 1.5px hsl(var(--libtv-accent) / 0.7);
+}
+.libtv-ratio-cell--active .libtv-ratio-shape {
+  background: hsl(var(--libtv-accent));
+}
+.libtv-ratio-cell__label {
+  font-size: 10px;
+  line-height: 1;
+  color: hsl(var(--libtv-chip-fg));
+  font-weight: 500;
+}
+.libtv-ratio-cell--active .libtv-ratio-cell__label {
+  color: hsl(var(--libtv-accent));
+}
+.libtv-ratio-shape {
+  background: hsl(var(--libtv-muted) / 0.7);
+  border-radius: 2px;
+  transition: background 0.15s ease;
+}
+
+/* Submit button — circular up arrow */
+.libtv-submit {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: hsl(var(--foreground));
+  color: hsl(var(--background));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+.libtv-submit:hover { transform: scale(1.08); }
+.libtv-submit:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  transform: none;
+}
+
 /* ── Collapsed sidebar icon strip ── */
 .sidebar-icon-strip {
   width: 48px;
