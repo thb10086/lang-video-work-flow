@@ -1,10 +1,31 @@
+/**
+ * StoryboardNode — LibTV-style AI storyboard breakdown.
+ *
+ * Input is a free-form script; AI returns an array of `ShotItem`s which are
+ * rendered as a compact shot-card list. A toolbar chip expands the shots
+ * into image+video node pairs on the canvas (auto-connected).
+ *
+ * Unlike the generation nodes, the preview surface is not an image but a
+ * scrollable list, so we skip PreviewArea and use a hairline-bordered
+ * scroll container instead.
+ */
 import { memo, useCallback } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { Film, Play, Loader2, CheckCircle2, AlertCircle, Plus } from 'lucide-react'
+import {
+  Film, AlertTriangle, Layers, Clapperboard,
+} from 'lucide-react'
+
 import { useFlowStore } from '@/store/flowStore'
 import { backendApi } from '@/api/backend'
 import { useSettingsStore } from '@/store/settingsStore'
-import { DEFAULT_IMAGE_MODEL, DEFAULT_VIDEO_MODEL, DEFAULT_VIDEO_SIZE, DEFAULT_VIDEO_DURATION, TASK_TOKEN_BUDGETS } from '@/providers/modelDefaults'
+import {
+  DEFAULT_IMAGE_MODEL, DEFAULT_VIDEO_MODEL, DEFAULT_VIDEO_SIZE,
+  DEFAULT_VIDEO_DURATION, TASK_TOKEN_BUDGETS,
+} from '@/providers/modelDefaults'
+
+import {
+  NodeShell, NodeToolbar, SubmitButton,
+} from '@/components/nodes/_shell'
 
 interface ShotItem {
   id: number
@@ -22,7 +43,7 @@ interface ShotItem {
   emotionIntensity?: number
 }
 
-function StoryboardNode({ id, data, selected }: NodeProps) {
+function StoryboardNode({ id, data }: NodeProps) {
   const status = String(data.status || 'idle')
   const label = String(data.label || '分镜脚本')
   const script = String(data.script || '')
@@ -139,104 +160,120 @@ Rules: 3-8 shots, 4-15s each, imagePrompt/videoPrompt in English, embed characte
     })
   }, [id, data.shots, addNode, onConnect])
 
-  const borderClass = status === 'generating'
-    ? 'border-yellow-400 shadow-yellow-200/50 animate-pulse'
-    : status === 'done'
-    ? 'border-green-500 shadow-green-200/50'
-    : status === 'error'
-    ? 'border-red-500 shadow-red-200/50'
-    : selected
-    ? 'border-purple-500 shadow-purple-200'
-    : 'border-border'
+  const isGenerating = status === 'generating'
+  const nodes = useFlowStore(s => s.nodes)
+  const handleGhostConnect = useCallback((side: 'left' | 'right') => {
+    const self = nodes.find(n => n.id === id)
+    if (!self) return
+    const offset = side === 'left' ? -360 : 360
+    const position = { x: (self.position?.x ?? 0) + offset, y: self.position?.y ?? 0 }
+    window.dispatchEvent(new CustomEvent('libtv-ghost-connect', {
+      detail: { sourceNodeId: id, side, position },
+    }))
+  }, [nodes, id])
+
+  const labelRightSlot = (
+    <div className="flex items-center gap-1">
+      {shots.length > 0 && (
+        <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-[hsl(var(--libtv-chip-bg))] text-[hsl(var(--libtv-chip-fg))]">
+          {shots.length} 镜
+        </span>
+      )}
+      {status === 'done' && <span className="text-[hsl(var(--success))]">✓</span>}
+      {status === 'error' && <AlertTriangle size={11} className="text-[hsl(var(--destructive))]" />}
+    </div>
+  )
 
   return (
-    <div className={`workflow-node bg-card border-2 rounded-xl shadow-lg w-[320px] transition-all duration-300 ${borderClass}`}>
-      <Handle type="target" position={Position.Left} id="script-in" className="!w-3 !h-3 !bg-amber-500" />
+    <NodeShell
+      icon={<Film size={11} strokeWidth={2.5} />}
+      label={label}
+      labelRight={labelRightSlot}
+      width={420}
+      executing={isGenerating}
+      ghostConnect={{ left: true, right: true }}
+      onGhostConnect={handleGhostConnect}
+    >
+      <Handle type="target" position={Position.Left} id="script-in" />
+      <Handle type="source" position={Position.Right} id="scenes-out" />
 
-      {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 bg-purple-500/10 rounded-t-xl border-b border-border">
-        <Film className="w-4 h-4 text-purple-500" />
-        <span className="font-semibold text-sm">{label}</span>
-        {status === 'done' && <CheckCircle2 className="w-3.5 h-3.5 text-green-500 ml-auto" />}
-        {status === 'error' && <AlertCircle className="w-3.5 h-3.5 text-red-500 ml-auto" />}
-      </div>
+      <div className="p-3 space-y-2.5">
+        {/* ── INPUT ── */}
+        <textarea
+          value={script}
+          onChange={handleScriptChange}
+          placeholder="粘贴剧本或一句话创意，AI 将自动拆解为 3-8 个分镜..."
+          rows={4}
+          className="libtv-prompt"
+        />
 
-      {/* Content */}
-      <div className="p-3 space-y-2">
-        {/* Script Input */}
-        <div className="space-y-1">
-          <label className="text-[10px] text-muted-foreground">剧本 / 创意描述</label>
-          <textarea
-            value={script}
-            onChange={handleScriptChange}
-            placeholder="输入剧本或创意描述，AI将自动拆解为分镜..."
-            rows={3}
-            className="w-full text-xs rounded-md border border-border bg-muted/30 p-2 resize-none focus:outline-none focus:ring-1 focus:ring-purple-400 placeholder:text-muted-foreground/50"
-          />
-        </div>
-
-        {/* Error */}
-        {errorMsg && (
-          <div className="text-[10px] text-red-500 bg-red-50 rounded px-2 py-1 break-all">{errorMsg}</div>
-        )}
-
-        {/* Shot List */}
+        {/* ── SHOT LIST — hairline bordered scrollable section ── */}
         {shots.length > 0 && (
-          <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] text-muted-foreground font-medium">分镜列表 ({shots.length})</span>
+          <div className="rounded-xl border border-[hsl(var(--libtv-line))] bg-[hsl(var(--libtv-chip-bg)/0.4)] overflow-hidden">
+            <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-[hsl(var(--libtv-line))]">
+              <span className="text-[10px] text-[hsl(var(--libtv-muted))] font-medium">
+                分镜列表
+              </span>
               <button
+                type="button"
                 onClick={handleExpandToNodes}
-                className="text-[10px] text-purple-500 hover:text-purple-600 flex items-center gap-0.5"
+                className="libtv-chip libtv-chip--ghost !py-0.5 !px-1.5"
+                title="为每个分镜创建 imageGen + videoGen 节点，并自动连接"
               >
-                <Plus className="w-3 h-3" /> 展开为节点
+                <Layers size={11} strokeWidth={2} />
+                <span>展开为节点</span>
               </button>
             </div>
-            {shots.map((shot, i) => (
-              <div key={i} className="bg-muted/40 rounded p-2 space-y-0.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-semibold text-foreground">镜头 {shot.id || i + 1}</span>
-                  <span className="text-[9px] text-muted-foreground">{shot.duration}s | {shot.camera}</span>
+            <div className="max-h-[220px] overflow-y-auto divide-y divide-[hsl(var(--libtv-line))]">
+              {shots.map((shot, i) => (
+                <div key={i} className="px-2.5 py-2 space-y-0.5 hover:bg-[hsl(var(--libtv-chip-bg-hover)/0.5)] transition-colors">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-[hsl(var(--foreground))] flex items-center gap-1">
+                      <Clapperboard size={10} className="text-[hsl(var(--libtv-accent))]" />
+                      镜头 {shot.id || i + 1}
+                    </span>
+                    <span className="text-[9px] text-[hsl(var(--libtv-muted))] truncate max-w-[60%] text-right">
+                      {shot.duration}s · {shot.camera}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-[hsl(var(--libtv-muted))]">{shot.scene}</p>
+                  {shot.charactersPresent && shot.charactersPresent.length > 0 && (
+                    <p className="text-[9px] text-[hsl(var(--libtv-accent))]">
+                      角色：{shot.charactersPresent.join(', ')}
+                    </p>
+                  )}
+                  <p className="text-[10px] text-[hsl(var(--foreground)/0.8)] line-clamp-2">
+                    {shot.imagePrompt || shot.description}
+                  </p>
+                  {shot.dialogue && (
+                    <p className="text-[9px] text-amber-500 italic line-clamp-1">
+                      “{shot.dialogue}”
+                    </p>
+                  )}
                 </div>
-                <p className="text-[10px] text-muted-foreground">{shot.scene}</p>
-                {shot.charactersPresent && shot.charactersPresent.length > 0 && (
-                  <p className="text-[9px] text-blue-500">{shot.charactersPresent.join(', ')}</p>
-                )}
-                <p className="text-[10px] text-foreground/80 line-clamp-2">{shot.imagePrompt || shot.description}</p>
-                {shot.dialogue && (
-                  <p className="text-[9px] text-amber-600 italic line-clamp-1">{shot.dialogue}</p>
-                )}
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── TOOLBAR ── */}
+        <NodeToolbar
+          right={
+            <SubmitButton
+              onClick={handleGenerateStoryboard}
+              disabled={!script.trim() || isGenerating}
+              loading={isGenerating}
+            />
+          }
+        />
+
+        {errorMsg && (
+          <div className="text-[10px] text-[hsl(var(--destructive))] bg-[hsl(var(--destructive)/0.08)] border border-[hsl(var(--destructive)/0.2)] rounded-lg px-2 py-1.5 break-all">
+            {errorMsg}
           </div>
         )}
       </div>
-
-      {/* Footer */}
-      <div className="px-4 py-2 border-t border-border">
-        <button
-          onClick={handleGenerateStoryboard}
-          disabled={!script.trim() || status === 'generating'}
-          className={`w-full py-1.5 rounded-md text-xs font-medium flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-            status === 'generating'
-              ? 'bg-yellow-100 text-yellow-700'
-              : status === 'done'
-              ? 'bg-green-500 text-white hover:bg-green-600'
-              : 'bg-purple-500 text-white hover:bg-purple-600'
-          }`}
-        >
-          {status === 'generating' ? (
-            <><Loader2 className="w-3 h-3 animate-spin" /> 生成分镜中...</>
-          ) : status === 'done' ? (
-            <><Play className="w-3 h-3" /> 重新生成</>
-          ) : (
-            <><Play className="w-3 h-3" /> AI 拆解分镜</>
-          )}
-        </button>
-      </div>
-
-      <Handle type="source" position={Position.Right} id="scenes-out" className="!w-3 !h-3 !bg-purple-400" />
-    </div>
+    </NodeShell>
   )
 }
 

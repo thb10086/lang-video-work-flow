@@ -1,16 +1,44 @@
-import { memo, useCallback, useState } from 'react'
+/**
+ * CharacterGridNode — LibTV-style 3×3 character reference sheet.
+ *
+ * The node generates a single 3×3 grid image (front/side/back/etc.) of the
+ * character for use as a reference in downstream imageGen / videoGen.
+ *
+ * LibTV visual treatment: preview occupies ~square area showing the grid
+ * image, name + description inputs stack under it, style picker becomes a
+ * popover chip in the toolbar, and the "Save to Library" action is a chip
+ * in the label-right slot.
+ */
+
+import { memo, useCallback, useMemo, useState } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { User, Play, Loader2, CheckCircle2, AlertCircle, Library } from 'lucide-react'
+import {
+  User, Library, Loader2, AlertTriangle, Palette, ChevronDown, Users,
+} from 'lucide-react'
+
 import { useFlowStore } from '@/store/flowStore'
+import { useAssetStore } from '@/store/assetStore'
 import { backendApi } from '@/api/backend'
 import { DEFAULT_IMAGE_MODEL } from '@/providers/modelDefaults'
 import { characterSheetTemplate } from '@/prompts/templates/characterSheet'
 import { renderTemplate } from '@/prompts/promptEngine'
-import { useAssetStore } from '@/store/assetStore'
 
-const ART_STYLES = ['anime', 'realistic', 'cartoon', 'watercolor', 'pixel art', 'comic book', '3D render']
+import {
+  NodeShell, PreviewArea, NodeToolbar, SubmitButton, ParamPopover,
+  SegmentedPicker,
+} from '@/components/nodes/_shell'
 
-function CharacterGridNode({ id, data, selected }: NodeProps) {
+const ART_STYLES = [
+  { value: 'anime',       label: '动漫' },
+  { value: 'realistic',   label: '写实' },
+  { value: 'cartoon',     label: '卡通' },
+  { value: 'watercolor',  label: '水彩' },
+  { value: 'pixel art',   label: '像素' },
+  { value: 'comic book',  label: '漫画' },
+  { value: '3D render',   label: '3D' },
+]
+
+function CharacterGridNode({ id, data }: NodeProps) {
   const status = String(data.status || 'idle')
   const label = String(data.label || '角色九宫图')
   const charName = String(data.name || '')
@@ -93,132 +121,136 @@ function CharacterGridNode({ id, data, selected }: NodeProps) {
     }
   }, [id, data.name, data.description, data.style, status, updateNodeData])
 
-  const borderClass = status === 'generating'
-    ? 'border-yellow-400 shadow-yellow-200/50 animate-pulse'
-    : status === 'done'
-    ? 'border-green-500 shadow-green-200/50'
-    : status === 'error'
-    ? 'border-red-500 shadow-red-200/50'
-    : selected
-    ? 'border-purple-500 shadow-purple-200'
-    : 'border-border'
+  const isGenerating = status === 'generating'
+  const nodes = useFlowStore(s => s.nodes)
+  const handleGhostConnect = useCallback((side: 'left' | 'right') => {
+    const self = nodes.find(n => n.id === id)
+    if (!self) return
+    const offset = side === 'left' ? -340 : 340
+    const position = { x: (self.position?.x ?? 0) + offset, y: self.position?.y ?? 0 }
+    window.dispatchEvent(new CustomEvent('libtv-ghost-connect', {
+      detail: { sourceNodeId: id, side, position },
+    }))
+  }, [nodes, id])
+
+  const currentStyleLabel = useMemo(
+    () => ART_STYLES.find(s => s.value === style)?.label || style,
+    [style],
+  )
+
+  const labelRightSlot = (
+    <div className="flex items-center gap-1">
+      {assetId ? (
+        <span
+          className="flex items-center gap-0.5 text-[9px] text-[hsl(var(--success))] bg-[hsl(var(--success)/0.15)] border border-[hsl(var(--success)/0.3)] rounded-full px-1.5 py-0.5"
+          title={`已保存：${assetId}`}
+        >
+          <Library size={9} strokeWidth={2.5} />
+          库内
+        </span>
+      ) : canSaveToLibrary ? (
+        <button
+          type="button"
+          onClick={handleSaveToLibrary}
+          disabled={savingToLibrary}
+          className="flex items-center gap-0.5 text-[9px] font-medium text-[hsl(var(--libtv-accent))] bg-[hsl(var(--libtv-accent)/0.15)] border border-[hsl(var(--libtv-accent)/0.3)] rounded-full px-1.5 py-0.5 hover:bg-[hsl(var(--libtv-accent)/0.25)] disabled:opacity-50"
+        >
+          {savingToLibrary ? <Loader2 size={9} className="animate-spin" /> : <Library size={9} strokeWidth={2.5} />}
+          入库
+        </button>
+      ) : null}
+      {status === 'done' && <span className="text-[hsl(var(--success))]">✓</span>}
+      {status === 'error' && <AlertTriangle size={11} className="text-[hsl(var(--destructive))]" />}
+    </div>
+  )
 
   return (
-    <div className={`workflow-node bg-card border-2 rounded-xl shadow-lg w-[300px] transition-all duration-300 ${borderClass}`}>
-      <Handle type="target" position={Position.Left} id="prompt-in" className="!w-3 !h-3 !bg-purple-500" />
+    <NodeShell
+      icon={<Users size={11} strokeWidth={2.5} />}
+      label={label}
+      labelRight={labelRightSlot}
+      width={380}
+      executing={isGenerating}
+      ghostConnect={{ left: true, right: true }}
+      onGhostConnect={handleGhostConnect}
+    >
+      <Handle type="target" position={Position.Left} id="prompt-in" />
+      <Handle type="source" position={Position.Right} id="grid-out" />
 
-      {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 bg-purple-500/10 rounded-t-xl border-b border-border">
-        <User className="w-4 h-4 text-purple-500" />
-        <span className="font-semibold text-sm flex-1 truncate">{label}</span>
-        {assetId ? (
-          <span
-            className="flex items-center gap-0.5 text-[9px] text-green-700 bg-green-500/15 border border-green-300/60 rounded-full px-1.5 py-0.5"
-            title={`已保存到素材库：${assetId}`}
-          >
-            <Library className="w-2.5 h-2.5" />
-            库内
-          </span>
-        ) : canSaveToLibrary ? (
-          <button
-            type="button"
-            onClick={handleSaveToLibrary}
-            disabled={savingToLibrary}
-            className="flex items-center gap-0.5 text-[10px] font-medium text-purple-700 bg-purple-500/15 border border-purple-300/60 rounded-full px-2 py-0.5 hover:bg-purple-500/25 disabled:opacity-50"
-            title="保存为素材库中的角色资产"
-          >
-            {savingToLibrary ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Library className="w-2.5 h-2.5" />}
-            保存
-          </button>
-        ) : null}
-        {status === 'done' && <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />}
-        {status === 'error' && <AlertCircle className="w-3.5 h-3.5 text-red-500" />}
-      </div>
+      <div className="p-3 space-y-2.5">
+        {/* ── 1. PREVIEW (square, hosts the 3x3 grid) ── */}
+        <PreviewArea
+          aspect="1/1"
+          placeholderIcon={User}
+          loading={isGenerating && !displayImage}
+        >
+          {displayImage && (
+            <img
+              src={displayImage}
+              alt="character grid"
+              className="absolute inset-0 w-full h-full object-cover cursor-zoom-in"
+              onClick={() => window.open(outputImageUrl || outputImage!, '_blank')}
+            />
+          )}
+        </PreviewArea>
 
-      {/* Content */}
-      <div className="p-3 space-y-2">
-        {/* Character Name */}
-        <div className="space-y-1">
-          <label className="text-[10px] text-muted-foreground">角色名称</label>
+        {/* ── 2. INPUT ── */}
+        <div className="space-y-1.5">
           <input
             type="text"
             value={charName}
             onChange={handleNameChange}
-            placeholder="例: 小明"
-            className="w-full text-xs rounded-md border border-border bg-muted/30 px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-purple-400"
+            placeholder="角色名称（例：小明）"
+            className="libtv-input"
           />
-        </div>
-
-        {/* Character Description */}
-        <div className="space-y-1">
-          <label className="text-[10px] text-muted-foreground">角色描述</label>
           <textarea
             value={charDesc}
             onChange={handleDescChange}
             placeholder="描述角色外貌、服装、特征..."
-            rows={2}
-            className="w-full text-xs rounded-md border border-border bg-muted/30 p-2 resize-none focus:outline-none focus:ring-1 focus:ring-purple-400 placeholder:text-muted-foreground/50"
+            rows={3}
+            className="libtv-prompt"
           />
         </div>
 
-        {/* Art Style */}
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">画风</span>
-          <select
-            value={style}
-            onChange={handleStyleChange}
-            className="text-xs font-medium px-2 py-0.5 rounded border border-border bg-muted/30 outline-none cursor-pointer"
-          >
-            {ART_STYLES.map(s => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-        </div>
+        {/* ── 3. TOOLBAR ── */}
+        <NodeToolbar
+          left={
+            <ParamPopover
+              align="start"
+              width={280}
+              trigger={({ toggle }) => (
+                <button type="button" className="libtv-chip" onClick={toggle}>
+                  <Palette size={12} strokeWidth={2} className="text-[hsl(var(--libtv-accent))]" />
+                  <span>{currentStyleLabel}</span>
+                  <ChevronDown size={11} strokeWidth={2} />
+                </button>
+              )}
+            >
+              <SegmentedPicker
+                title="画风"
+                options={ART_STYLES}
+                value={style}
+                onChange={v => updateNodeData(id, { style: v })}
+                cols={4}
+              />
+            </ParamPopover>
+          }
+          right={
+            <SubmitButton
+              onClick={handleGenerate}
+              disabled={isGenerating}
+              loading={isGenerating}
+            />
+          }
+        />
 
-        {/* Error Message */}
         {errorMsg && (
-          <div className="text-[10px] text-red-500 bg-red-50 rounded px-2 py-1 break-all">
+          <div className="text-[10px] text-[hsl(var(--destructive))] bg-[hsl(var(--destructive)/0.08)] border border-[hsl(var(--destructive)/0.2)] rounded-lg px-2 py-1.5 break-all">
             {errorMsg}
           </div>
         )}
-
-        {/* Output Preview — single grid image */}
-        {displayImage && (
-          <div
-            className="rounded-md overflow-hidden border border-border cursor-zoom-in"
-            onClick={() => window.open(outputImageUrl || outputImage!, '_blank')}
-            title="点击查看原图"
-          >
-            <img src={displayImage} alt="character grid" className="w-full" />
-          </div>
-        )}
       </div>
-
-      {/* Footer */}
-      <div className="px-4 py-2 border-t border-border">
-        <button
-          onClick={handleGenerate}
-          disabled={status === 'generating'}
-          className={`w-full py-1.5 rounded-md text-xs font-medium flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-            status === 'generating'
-              ? 'bg-yellow-100 text-yellow-700'
-              : status === 'done'
-              ? 'bg-green-500 text-white hover:bg-green-600'
-              : 'bg-purple-500 text-white hover:bg-purple-600'
-          }`}
-        >
-          {status === 'generating' ? (
-            <><Loader2 className="w-3 h-3 animate-spin" /> 生成中...</>
-          ) : status === 'done' ? (
-            <><Play className="w-3 h-3" /> 重新生成</>
-          ) : (
-            <><Play className="w-3 h-3" /> 生成九宫图</>
-          )}
-        </button>
-      </div>
-
-      <Handle type="source" position={Position.Right} id="grid-out" className="!w-3 !h-3 !bg-purple-500" />
-    </div>
+    </NodeShell>
   )
 }
 

@@ -18,6 +18,12 @@ export interface SegmentedPickerProps<V extends string = string> {
   onChange: (value: V) => void
   title?: string
   className?: string
+  /**
+   * If set, arranges the buttons in a CSS grid with this many columns
+   * (good for 5+ options that would overflow horizontally). When omitted,
+   * buttons stretch equally on one row.
+   */
+  cols?: number
 }
 
 export default function SegmentedPicker<V extends string = string>({
@@ -26,13 +32,20 @@ export default function SegmentedPicker<V extends string = string>({
   onChange,
   title,
   className = '',
+  cols,
 }: SegmentedPickerProps<V>) {
+  const containerCls = cols
+    ? 'grid gap-1'
+    : 'flex items-center gap-1'
+  const gridStyle = cols ? { gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` } : undefined
+  const btnCls = cols ? 'min-w-0' : 'flex-1 min-w-0'
+
   return (
     <div className={`space-y-2 ${className}`}>
       {title && (
         <div className="text-[11px] font-medium text-[hsl(var(--libtv-chip-fg))] pl-0.5">{title}</div>
       )}
-      <div className="flex items-center gap-1">
+      <div className={containerCls} style={gridStyle}>
         {options.map((o) => {
           const active = o.value === value
           return (
@@ -42,7 +55,7 @@ export default function SegmentedPicker<V extends string = string>({
               disabled={o.disabled}
               title={o.disabled ? o.disabledReason : undefined}
               onClick={() => !o.disabled && onChange(o.value)}
-              className={`flex-1 min-w-0 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-colors ${
+              className={`${btnCls} px-3 py-1.5 rounded-lg text-[11px] font-medium transition-colors ${
                 active
                   ? 'bg-[hsl(var(--libtv-accent)/0.18)] text-[hsl(var(--libtv-accent))] ring-1 ring-[hsl(var(--libtv-accent)/0.7)] ring-inset'
                   : 'bg-[hsl(var(--libtv-chip-bg))] text-[hsl(var(--libtv-chip-fg))] hover:bg-[hsl(var(--libtv-chip-bg-hover))]'

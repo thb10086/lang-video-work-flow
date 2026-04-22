@@ -511,6 +511,29 @@
   color: hsl(var(--libtv-muted) / 0.7);
 }
 
+/* Short single-line input used for 名称 / 标签 / 标题 fields.
+   Visually matches .libtv-prompt but sits inside a hairline-bordered pill
+   so the user can quickly see where to type. */
+.libtv-input {
+  width: 100%;
+  background: hsl(var(--libtv-chip-bg));
+  border: 1px solid hsl(var(--libtv-line));
+  outline: none;
+  color: hsl(var(--foreground));
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 6px 10px;
+  border-radius: 10px;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+.libtv-input::placeholder {
+  color: hsl(var(--libtv-muted) / 0.7);
+}
+.libtv-input:focus {
+  border-color: hsl(var(--libtv-accent) / 0.5);
+  background: hsl(var(--libtv-chip-bg-hover));
+}
+
 /* Popover (parameter drawer that rises from toolbar) */
 .libtv-popover {
   position: absolute;

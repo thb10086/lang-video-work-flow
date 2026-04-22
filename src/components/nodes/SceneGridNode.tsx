@@ -1,16 +1,45 @@
-import { memo, useCallback } from 'react'
+/**
+ * SceneGridNode — LibTV-style scene reference grid.
+ *
+ * Same structural DNA as CharacterGridNode; produces a grid of scene angles
+ * / time-of-day variations. Style + mood are exposed as two popover chips
+ * so they can be swapped quickly.
+ */
+import { memo, useCallback, useMemo } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { Mountain, Play, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
+import {
+  Mountain, AlertTriangle, Palette, Sparkles, ChevronDown,
+} from 'lucide-react'
+
 import { useFlowStore } from '@/store/flowStore'
 import { backendApi } from '@/api/backend'
 import { DEFAULT_IMAGE_MODEL } from '@/providers/modelDefaults'
 import { sceneSheetTemplate } from '@/prompts/templates/sceneSheet'
 import { renderTemplate } from '@/prompts/promptEngine'
 
-const SCENE_STYLES = ['cinematic', 'anime', 'realistic', 'painterly', 'noir', 'fantasy']
-const SCENE_MOODS = ['dramatic', 'peaceful', 'tense', 'romantic', 'mysterious', 'epic']
+import {
+  NodeShell, PreviewArea, NodeToolbar, SubmitButton, ParamPopover,
+  SegmentedPicker,
+} from '@/components/nodes/_shell'
 
-function SceneGridNode({ id, data, selected }: NodeProps) {
+const SCENE_STYLES = [
+  { value: 'cinematic', label: '电影' },
+  { value: 'anime',     label: '动漫' },
+  { value: 'realistic', label: '写实' },
+  { value: 'painterly', label: '绘画' },
+  { value: 'noir',      label: '黑色' },
+  { value: 'fantasy',   label: '奇幻' },
+]
+const SCENE_MOODS = [
+  { value: 'dramatic',   label: '戏剧' },
+  { value: 'peaceful',   label: '宁静' },
+  { value: 'tense',      label: '紧张' },
+  { value: 'romantic',   label: '浪漫' },
+  { value: 'mysterious', label: '神秘' },
+  { value: 'epic',       label: '史诗' },
+]
+
+function SceneGridNode({ id, data }: NodeProps) {
   const status = String(data.status || 'idle')
   const label = String(data.label || '场景九宫图')
   const sceneName = String(data.name || '')
@@ -76,126 +105,143 @@ function SceneGridNode({ id, data, selected }: NodeProps) {
     }
   }, [id, data.name, data.description, data.style, data.mood, status, updateNodeData])
 
-  const borderClass = status === 'generating'
-    ? 'border-yellow-400 shadow-yellow-200/50 animate-pulse'
-    : status === 'done'
-    ? 'border-green-500 shadow-green-200/50'
-    : status === 'error'
-    ? 'border-red-500 shadow-red-200/50'
-    : selected
-    ? 'border-emerald-500 shadow-emerald-200'
-    : 'border-border'
+  const isGenerating = status === 'generating'
+  const nodes = useFlowStore(s => s.nodes)
+  const handleGhostConnect = useCallback((side: 'left' | 'right') => {
+    const self = nodes.find(n => n.id === id)
+    if (!self) return
+    const offset = side === 'left' ? -340 : 340
+    const position = { x: (self.position?.x ?? 0) + offset, y: self.position?.y ?? 0 }
+    window.dispatchEvent(new CustomEvent('libtv-ghost-connect', {
+      detail: { sourceNodeId: id, side, position },
+    }))
+  }, [nodes, id])
+
+  const styleLabel = useMemo(
+    () => SCENE_STYLES.find(s => s.value === style)?.label || style,
+    [style],
+  )
+  const moodLabel = useMemo(
+    () => SCENE_MOODS.find(m => m.value === mood)?.label || mood,
+    [mood],
+  )
+
+  const labelRightSlot = (
+    <div className="flex items-center gap-1">
+      {status === 'done' && <span className="text-[hsl(var(--success))]">✓</span>}
+      {status === 'error' && <AlertTriangle size={11} className="text-[hsl(var(--destructive))]" />}
+    </div>
+  )
 
   return (
-    <div className={`workflow-node bg-card border-2 rounded-xl shadow-lg w-[300px] transition-all duration-300 ${borderClass}`}>
-      <Handle type="target" position={Position.Left} id="prompt-in" className="!w-3 !h-3 !bg-emerald-500" />
+    <NodeShell
+      icon={<Mountain size={11} strokeWidth={2.5} />}
+      label={label}
+      labelRight={labelRightSlot}
+      width={380}
+      executing={isGenerating}
+      ghostConnect={{ left: true, right: true }}
+      onGhostConnect={handleGhostConnect}
+    >
+      <Handle type="target" position={Position.Left} id="prompt-in" />
+      <Handle type="source" position={Position.Right} id="grid-out" />
 
-      {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 bg-emerald-500/10 rounded-t-xl border-b border-border">
-        <Mountain className="w-4 h-4 text-emerald-500" />
-        <span className="font-semibold text-sm">{label}</span>
-        {status === 'done' && <CheckCircle2 className="w-3.5 h-3.5 text-green-500 ml-auto" />}
-        {status === 'error' && <AlertCircle className="w-3.5 h-3.5 text-red-500 ml-auto" />}
-      </div>
+      <div className="p-3 space-y-2.5">
+        {/* ── 1. PREVIEW ── */}
+        <PreviewArea
+          aspect="1/1"
+          placeholderIcon={Mountain}
+          loading={isGenerating && !displayImage}
+        >
+          {displayImage && (
+            <img
+              src={displayImage}
+              alt="scene grid"
+              className="absolute inset-0 w-full h-full object-cover cursor-zoom-in"
+              onClick={() => window.open(outputImageUrl || outputImage!, '_blank')}
+            />
+          )}
+        </PreviewArea>
 
-      {/* Content */}
-      <div className="p-3 space-y-2">
-        {/* Scene Name */}
-        <div className="space-y-1">
-          <label className="text-[10px] text-muted-foreground">场景名称</label>
+        {/* ── 2. INPUT ── */}
+        <div className="space-y-1.5">
           <input
             type="text"
             value={sceneName}
             onChange={handleNameChange}
-            placeholder="例: 赛博朋克城市"
-            className="w-full text-xs rounded-md border border-border bg-muted/30 px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-400"
+            placeholder="场景名称（例：赛博朋克城市）"
+            className="libtv-input"
           />
-        </div>
-
-        {/* Scene Description */}
-        <div className="space-y-1">
-          <label className="text-[10px] text-muted-foreground">场景描述</label>
           <textarea
             value={sceneDesc}
             onChange={handleDescChange}
             placeholder="描述场景环境、建筑、氛围..."
-            rows={2}
-            className="w-full text-xs rounded-md border border-border bg-muted/30 p-2 resize-none focus:outline-none focus:ring-1 focus:ring-emerald-400 placeholder:text-muted-foreground/50"
+            rows={3}
+            className="libtv-prompt"
           />
         </div>
 
-        {/* Style & Mood */}
-        <div className="flex gap-2">
-          <div className="flex-1">
-            <span className="text-[10px] text-muted-foreground">风格</span>
-            <select
-              value={style}
-              onChange={handleStyleChange}
-              className="w-full text-xs font-medium px-2 py-1 rounded border border-border bg-muted/30 outline-none cursor-pointer mt-0.5"
-            >
-              {SCENE_STYLES.map(s => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex-1">
-            <span className="text-[10px] text-muted-foreground">情绪</span>
-            <select
-              value={mood}
-              onChange={handleMoodChange}
-              className="w-full text-xs font-medium px-2 py-1 rounded border border-border bg-muted/30 outline-none cursor-pointer mt-0.5"
-            >
-              {SCENE_MOODS.map(m => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-          </div>
-        </div>
+        {/* ── 3. TOOLBAR ── */}
+        <NodeToolbar
+          left={
+            <>
+              <ParamPopover
+                align="start"
+                width={260}
+                trigger={({ toggle }) => (
+                  <button type="button" className="libtv-chip" onClick={toggle}>
+                    <Palette size={12} strokeWidth={2} className="text-[hsl(var(--libtv-accent))]" />
+                    <span>{styleLabel}</span>
+                    <ChevronDown size={11} strokeWidth={2} />
+                  </button>
+                )}
+              >
+                <SegmentedPicker
+                  title="风格"
+                  options={SCENE_STYLES}
+                  value={style}
+                  onChange={v => updateNodeData(id, { style: v })}
+                  cols={3}
+                />
+              </ParamPopover>
 
-        {/* Error Message */}
+              <ParamPopover
+                align="start"
+                width={260}
+                trigger={({ toggle }) => (
+                  <button type="button" className="libtv-chip" onClick={toggle}>
+                    <Sparkles size={12} strokeWidth={2} className="text-[hsl(var(--libtv-accent))]" />
+                    <span>{moodLabel}</span>
+                    <ChevronDown size={11} strokeWidth={2} />
+                  </button>
+                )}
+              >
+                <SegmentedPicker
+                  title="情绪"
+                  options={SCENE_MOODS}
+                  value={mood}
+                  onChange={v => updateNodeData(id, { mood: v })}
+                  cols={3}
+                />
+              </ParamPopover>
+            </>
+          }
+          right={
+            <SubmitButton
+              onClick={handleGenerate}
+              disabled={isGenerating}
+              loading={isGenerating}
+            />
+          }
+        />
+
         {errorMsg && (
-          <div className="text-[10px] text-red-500 bg-red-50 rounded px-2 py-1 break-all">
+          <div className="text-[10px] text-[hsl(var(--destructive))] bg-[hsl(var(--destructive)/0.08)] border border-[hsl(var(--destructive)/0.2)] rounded-lg px-2 py-1.5 break-all">
             {errorMsg}
           </div>
         )}
-
-        {/* Output Preview — single grid image */}
-        {displayImage && (
-          <div
-            className="rounded-md overflow-hidden border border-border cursor-zoom-in"
-            onClick={() => window.open(outputImageUrl || outputImage!, '_blank')}
-            title="点击查看原图"
-          >
-            <img src={displayImage} alt="scene grid" className="w-full" />
-          </div>
-        )}
       </div>
-
-      {/* Footer */}
-      <div className="px-4 py-2 border-t border-border">
-        <button
-          onClick={handleGenerate}
-          disabled={status === 'generating'}
-          className={`w-full py-1.5 rounded-md text-xs font-medium flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-            status === 'generating'
-              ? 'bg-yellow-100 text-yellow-700'
-              : status === 'done'
-              ? 'bg-green-500 text-white hover:bg-green-600'
-              : 'bg-emerald-500 text-white hover:bg-emerald-600'
-          }`}
-        >
-          {status === 'generating' ? (
-            <><Loader2 className="w-3 h-3 animate-spin" /> 生成中...</>
-          ) : status === 'done' ? (
-            <><Play className="w-3 h-3" /> 重新生成</>
-          ) : (
-            <><Play className="w-3 h-3" /> 生成九宫图</>
-          )}
-        </button>
-      </div>
-
-      <Handle type="source" position={Position.Right} id="grid-out" className="!w-3 !h-3 !bg-emerald-500" />
-    </div>
+    </NodeShell>
   )
 }
 
