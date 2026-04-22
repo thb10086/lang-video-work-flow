@@ -1,6 +1,18 @@
+/**
+ * ImageGenNode — LibTV-style image generation node.
+ *
+ * Mirror of VideoGenNode but for stills. Mode tabs switch between
+ * 文生图 / 图生图 / 图片高清 / 图片参考 / 风格. First-class params are
+ * aspect + resolution + count; everything else drops into the popover's
+ * "更多参数" section (future work).
+ */
 import { memo, useCallback, useMemo, useRef } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { ImageIcon, Play, Loader2, CheckCircle2, AlertCircle, Upload, X, RefreshCw } from 'lucide-react'
+import {
+  Image as ImageIcon, Upload, X, AlertTriangle, Loader2,
+  ChevronDown, Palette, Tag, Camera, Mountain, Sparkles, HardDrive,
+} from 'lucide-react'
+
 import { useFlowStore } from '@/store/flowStore'
 import { backendApi } from '@/api/backend'
 import { DEFAULT_IMAGE_MODEL } from '@/providers/modelDefaults'
@@ -11,7 +23,39 @@ import SlashMenu, { type SlashCommand } from '@/components/canvas/SlashMenu'
 import { sanitizeForExecute, sanitizeOnModelSwitch } from '@/providers/paramSanitizer'
 import PromptInput from '@/components/ui/PromptInput'
 
-function ImageGenNode({ id, data, selected }: NodeProps) {
+import {
+  NodeShell, PreviewArea, ModeTabs, ActionChips, NodeToolbar, SubmitButton,
+  ParamPopover, AspectRatioPicker, SegmentedPicker,
+  DEFAULT_IMAGE_RATIOS,
+  type ModeTabItem, type ActionChipItem,
+} from '@/components/nodes/_shell'
+
+// ── Types ──
+
+type ImageMode = 't2i' | 'i2i' | 'upscale' | 'img-ref' | 'style'
+
+const MODE_TABS: ModeTabItem<ImageMode>[] = [
+  { value: 't2i',     label: '文生图' },
+  { value: 'i2i',     label: '图生图' },
+  { value: 'upscale', label: '图片高清' },
+  { value: 'img-ref', label: '图片参考' },
+  { value: 'style',   label: '风格' },
+]
+
+function findField(schema: ParamField[], predicate: (f: ParamField) => boolean) {
+  return schema.find(predicate)
+}
+function aspectField(schema: ParamField[]) {
+  return findField(schema, f => /aspect|ratio/i.test(f.key))
+}
+function sizeField(schema: ParamField[]) {
+  return findField(schema, f => /(size|resolution|quality)/i.test(f.key) && !/aspect/i.test(f.key))
+}
+function countField(schema: ParamField[]) {
+  return findField(schema, f => /(n|count|num_images|batch)/i.test(f.key) && /^n|count|num|batch/i.test(f.key))
+}
+
+function ImageGenNode({ id, data }: NodeProps) {
   const { models: backendImageModels, error: modelsError, retry: retryModels } = useBackendModels('image')
   const imageModels = useMemo(() => {
     return backendImageModels.map(m => ({ id: m.model_id, name: m.name, description: m.description }))
@@ -25,19 +69,10 @@ function ImageGenNode({ id, data, selected }: NodeProps) {
   const referenceImage = data.referenceImage as string | null
   const referenceImages = data.referenceImages as string[] | null
   const hasRefImages = !!(referenceImages?.length || referenceImage)
-  const aspectRatio = String(data.aspectRatio || '1:1')
-  const imageSize = String(data.imageSize || '2k')
   const modelId = String(data.model || DEFAULT_IMAGE_MODEL)
-
-  // Dynamic param schema from backend DB (single source of truth)
-  const paramSchema: ParamField[] = useMemo(() => {
-    const bm = backendImageModels.find(m => m.model_id === modelId)
-    return (bm?.param_schema?.length ? bm.param_schema : []) as ParamField[]
-  }, [modelId, backendImageModels])
-  const aspectRatioField = useMemo(() => paramSchema.find(f => f.key === 'aspectRatio'), [paramSchema])
-  const imageSizeField = useMemo(() => paramSchema.find(f => f.key === 'imageSize'), [paramSchema])
   const errorMsg = data.errorMsg ? String(data.errorMsg) : null
   const retryCount = Number(data.retryCount || 0)
+  const mode = (data.imageMode as ImageMode) || 't2i'
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const updateNodeData = useFlowStore((s) => s.updateNodeData)
@@ -45,6 +80,56 @@ function ImageGenNode({ id, data, selected }: NodeProps) {
   const nodes = useFlowStore((s) => s.nodes)
   const { slashState, handleSlashKeyDown, closeSlash } = useSlashMenu()
 
+  // ── Dynamic param schema (from backend DB) ──
+  const paramSchema: ParamField[] = useMemo(() => {
+    const bm = backendImageModels.find(m => m.model_id === modelId)
+    return (bm?.param_schema?.length ? bm.param_schema : []) as ParamField[]
+  }, [modelId, backendImageModels])
+
+  const currentModelInfo = useMemo(
+    () => backendImageModels.find(m => m.model_id === modelId),
+    [backendImageModels, modelId],
+  )
+
+  const aspectSchema = useMemo(() => aspectField(paramSchema), [paramSchema])
+  const sizeSchema = useMemo(() => sizeField(paramSchema), [paramSchema])
+  const cntSchema = useMemo(() => countField(paramSchema), [paramSchema])
+
+  const aspectValue = aspectSchema ? String(data[aspectSchema.key] ?? aspectSchema.default ?? '1:1') : '1:1'
+  const sizeValue = sizeSchema ? String(data[sizeSchema.key] ?? sizeSchema.default ?? '2k').toUpperCase() : '2K'
+  const countValue = cntSchema ? Number(data[cntSchema.key] ?? cntSchema.default ?? 1) : 1
+
+  const paramSummary = useMemo(() => {
+    const parts: string[] = []
+    if (aspectSchema) parts.push(aspectValue)
+    if (sizeSchema) parts.push(sizeValue)
+    return parts.join(' · ') || '参数'
+  }, [aspectSchema, sizeSchema, aspectValue, sizeValue])
+
+  const previewAspect = useMemo(() => {
+    if (!aspectValue || aspectValue === 'auto' || aspectValue === '自适应') return '1/1'
+    return aspectValue.replace(':', '/')
+  }, [aspectValue])
+
+  const ratioOptions = useMemo(() => {
+    if (!aspectSchema?.options?.length) return DEFAULT_IMAGE_RATIOS
+    const shapeFor = (v: string) => DEFAULT_IMAGE_RATIOS.find(r => r.value === v)?.shape || { w: 18, h: 14 }
+    return aspectSchema.options.map(o => ({
+      value: String(o.value),
+      label: o.label,
+      shape: shapeFor(String(o.value)),
+    }))
+  }, [aspectSchema])
+
+  const sizeOptions = useMemo(() => {
+    if (!sizeSchema?.options?.length) return [] as { value: string; label: string }[]
+    return sizeSchema.options.map(o => ({
+      value: String(o.value),
+      label: o.label,
+    }))
+  }, [sizeSchema])
+
+  // ── Handlers ──
   const handleSlashSelect = useCallback((cmd: SlashCommand) => {
     closeSlash()
     if (cmd.action.startsWith('create:')) {
@@ -68,8 +153,7 @@ function ImageGenNode({ id, data, selected }: NodeProps) {
     updateNodeData(id, { assetRefs: refs })
   }, [id, updateNodeData])
 
-  const handleModelChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newModelId = e.target.value
+  const handleModelChange = useCallback((newModelId: string) => {
     const bm = backendImageModels.find(m => m.model_id === newModelId)
     const schema = (bm?.param_schema?.length ? bm.param_schema : []) as ParamField[]
     const currentData = (nodes.find(n => n.id === id)?.data || {}) as Record<string, unknown>
@@ -83,13 +167,23 @@ function ImageGenNode({ id, data, selected }: NodeProps) {
     }
   }, [id, updateNodeData, backendImageModels, nodes])
 
-  const handleAspectChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
-    updateNodeData(id, { aspectRatio: e.target.value })
-  }, [id, updateNodeData])
+  const handleModeChange = useCallback((next: ImageMode) => {
+    updateNodeData(id, { imageMode: next })
+    // 图生图 and 图片高清 modes imply a reference image — auto-prompt for upload
+    if ((next === 'i2i' || next === 'upscale') && !referenceImage && !hasRefImages) {
+      fileInputRef.current?.click()
+    }
+  }, [id, updateNodeData, referenceImage, hasRefImages])
 
-  const handleSizeChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
-    updateNodeData(id, { imageSize: e.target.value })
-  }, [id, updateNodeData])
+  const handleGhostConnect = useCallback((side: 'left' | 'right') => {
+    const self = nodes.find(n => n.id === id)
+    if (!self) return
+    const offset = side === 'left' ? -340 : 340
+    const position = { x: (self.position?.x ?? 0) + offset, y: self.position?.y ?? 0 }
+    window.dispatchEvent(new CustomEvent('libtv-ghost-connect', {
+      detail: { sourceNodeId: id, side, position },
+    }))
+  }, [nodes, id])
 
   const handleRefImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -142,218 +236,265 @@ function ImageGenNode({ id, data, selected }: NodeProps) {
     }
   }, [id, data, status, updateNodeData, backendImageModels])
 
-  const borderClass = status === 'generating'
-    ? 'border-yellow-400 shadow-yellow-200/50 animate-pulse'
-    : status === 'done'
-    ? 'border-green-500 shadow-green-200/50'
-    : status === 'error'
-    ? 'border-red-500 shadow-red-200/50'
-    : selected
-    ? 'border-blue-500 shadow-blue-200'
-    : 'border-border'
+  // ── Action chips (quick accessors under the mode tabs) ──
+  const actionChips: ActionChipItem[] = useMemo(() => ([
+    { key: 'style',    icon: Palette,    label: '风格' },
+    { key: 'tag',      icon: Tag,        label: '标记' },
+    { key: 'camera',   icon: Camera,     label: '摄像机' },
+    { key: 'panorama', icon: Mountain,   label: '全景' },
+  ]), [])
 
-  const currentModelInfo = imageModels.find(m => m.id === modelId)
+  const emptySuggestions = useMemo(() => ([
+    {
+      icon: Upload,
+      label: '图生图',
+      onClick: () => handleModeChange('i2i'),
+    },
+    {
+      icon: HardDrive,
+      label: '图片高清',
+      onClick: () => handleModeChange('upscale'),
+    },
+  ]), [handleModeChange])
+
+  const paramDrawer = (
+    <div className="space-y-4">
+      {sizeSchema && sizeOptions.length > 0 && (
+        <SegmentedPicker
+          title="分辨率"
+          options={sizeOptions}
+          value={sizeValue.toLowerCase()}
+          onChange={v => updateNodeData(id, { [sizeSchema.key]: v })}
+        />
+      )}
+      {aspectSchema && (
+        <AspectRatioPicker
+          title="比例"
+          ratios={ratioOptions}
+          value={aspectValue}
+          onChange={v => updateNodeData(id, { [aspectSchema.key]: v })}
+          cols={5}
+        />
+      )}
+    </div>
+  )
+
+  const isGenerating = status === 'generating'
+
+  const labelRightSlot = (
+    <div className="flex items-center gap-1">
+      {(referenceImages?.length ?? 0) > 1 && (
+        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-[hsl(var(--libtv-accent)/0.15)] text-[hsl(var(--libtv-accent))]">
+          {referenceImages!.length}参考
+        </span>
+      )}
+      {retryCount > 0 && (
+        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-[hsl(var(--libtv-accent)/0.15)] text-[hsl(var(--libtv-accent))]">
+          #{retryCount}
+        </span>
+      )}
+      {status === 'done' && <span className="text-[hsl(var(--success))]">✓</span>}
+      {status === 'error' && <AlertTriangle size={11} className="text-[hsl(var(--destructive))]" />}
+    </div>
+  )
 
   return (
-    <div className={`workflow-node bg-card border-2 rounded-xl shadow-lg w-[280px] transition-all duration-300 ${borderClass}`}>
-      <Handle type="target" position={Position.Left} id="prompt-in" className="!w-3 !h-3 !bg-blue-500" style={{ top: '25%' }} />
-      <Handle type="target" position={Position.Left} id="ref-in" className="!w-3 !h-3 !bg-cyan-400" style={{ top: '50%' }} />
-      <Handle type="target" position={Position.Left} id="style-in" className="!w-3 !h-3 !bg-amber-500" style={{ top: '75%' }} />
+    <NodeShell
+      icon={<ImageIcon size={11} strokeWidth={2.5} />}
+      label={label}
+      labelRight={labelRightSlot}
+      width={460}
+      executing={isGenerating}
+      ghostConnect={{ left: true, right: true }}
+      onGhostConnect={handleGhostConnect}
+    >
+      {/* Handles — invisible by default, visible on hover */}
+      <Handle type="target" position={Position.Left} id="prompt-in" style={{ top: '30%' }} />
+      <Handle type="target" position={Position.Left} id="ref-in"    style={{ top: '50%' }} />
+      <Handle type="target" position={Position.Left} id="style-in"  style={{ top: '70%' }} />
+      <Handle type="source" position={Position.Right} id="image-out" />
 
-      {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 bg-blue-500/10 rounded-t-xl border-b border-border">
-        <ImageIcon className="w-4 h-4 text-blue-500" />
-        <span className="font-semibold text-sm truncate flex-1">{label}</span>
-        {retryCount > 0 && (
-          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 border border-orange-200 flex-shrink-0">
-            重试#{retryCount}
-          </span>
-        )}
-        {(referenceImages?.length ?? 0) > 1 && (
-          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-cyan-100 text-cyan-700 border border-cyan-200 flex-shrink-0">
-            {referenceImages!.length}张参考
-          </span>
-        )}
-        {status === 'done' && <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />}
-        {status === 'error' && <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />}
-        {status === 'generating' && <Loader2 className="w-3.5 h-3.5 text-yellow-500 animate-spin flex-shrink-0" />}
-      </div>
-      {/* Generating progress bar */}
-      {status === 'generating' && (
-        <div className="h-1 w-full bg-yellow-100 overflow-hidden">
-          <div className="h-full bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-400 animate-[shimmer_1.5s_ease-in-out_infinite] bg-[length:200%_100%]" />
-        </div>
-      )}
-
-      {/* Content */}
-      <div className="p-3 space-y-2">
-        {/* Model load error banner */}
-        {modelsError && (
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-red-500/10 border border-red-300/60 text-[10px] text-red-700">
-            <AlertCircle className="w-3 h-3 flex-shrink-0" />
-            <div className="flex-1 min-w-0 truncate" title={modelsError}>
-              模型列表加载失败（fallback，非完整）
-            </div>
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); retryModels() }}
-              className="flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-red-300 hover:bg-red-500/20 text-red-700 font-medium"
-            >
-              <RefreshCw className="w-2.5 h-2.5" /> 重试
-            </button>
-          </div>
-        )}
-
-        {/* Model Selector */}
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">模型</span>
-          <select
-            value={modelId}
-            onChange={handleModelChange}
-            className="text-xs font-medium bg-blue-50 text-blue-700 px-2 py-1 rounded-md border border-blue-200 outline-none cursor-pointer hover:bg-blue-100 transition-colors"
-          >
-            {imageModels.map(m => (
-              <option key={m.id} value={m.id}>{m.name}</option>
-            ))}
-          </select>
-        </div>
-        {currentModelInfo?.description && (
-          <p className="text-[10px] text-muted-foreground/70 -mt-1">{currentModelInfo.description}</p>
-        )}
-
-        {/* Aspect Ratio + Image Size row */}
-        <div className="flex items-center gap-2">
-          <div className="flex-1">
-            <span className="text-[10px] text-muted-foreground block mb-0.5">宽高比</span>
-            <select
-              value={aspectRatio}
-              onChange={handleAspectChange}
-              className="w-full text-xs px-2 py-1 rounded-md border border-border bg-muted/30 outline-none cursor-pointer hover:bg-muted/50 transition-colors"
-            >
-              {(aspectRatioField?.options ?? [{ label: '1:1', value: '1:1' }]).map(r => (
-                <option key={r.value} value={r.value}>{r.label}</option>
-              ))}
-            </select>
-          </div>
-          <div className="w-[70px]">
-            <span className="text-[10px] text-muted-foreground block mb-0.5">分辨率</span>
-            <select
-              value={imageSize}
-              onChange={handleSizeChange}
-              className="w-full text-xs px-2 py-1 rounded-md border border-border bg-muted/30 outline-none cursor-pointer hover:bg-muted/50 transition-colors"
-            >
-              {(imageSizeField?.options ?? [{ label: '2K', value: '2k' }]).map(s => (
-                <option key={s.value} value={s.value}>{s.label}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Reference Image indicator — shows when upstream crops are connected */}
-        {hasRefImages && (
-          <div className="text-[10px] text-green-600 bg-green-50 rounded px-2 py-1">
-            角色参考图: {referenceImages?.length ?? 1} 张 (已连接)
-          </div>
-        )}
-
-        {/* Reference Image */}
-        <div>
-          <span className="text-[10px] text-muted-foreground block mb-1">手动参考图</span>
-          {referenceImage && !hasRefImages ? (
-            <div className="relative group">
-              <img src={referenceImage} alt="ref" className="w-full h-16 object-cover rounded-md border border-border" />
+      <div className="p-3 space-y-2.5">
+        {/* ── 1. PREVIEW ── */}
+        <PreviewArea
+          aspect={previewAspect}
+          placeholderIcon={Mountain}
+          suggestions={displayImage || referenceImage ? undefined : emptySuggestions}
+          loading={isGenerating && !displayImage}
+        >
+          {displayImage ? (
+            <img
+              src={displayImage}
+              alt={label}
+              className="absolute inset-0 w-full h-full object-cover cursor-zoom-in"
+              onClick={() => window.open(outputImageUrl || outputImage!, '_blank')}
+            />
+          ) : referenceImage && !hasRefImages ? (
+            /* Referenced image inline in preview — with remove button */
+            <div className="absolute inset-0 flex items-center justify-center">
+              <img src={referenceImage} alt="ref" className="max-w-full max-h-full object-contain" />
               <button
+                type="button"
                 onClick={handleRemoveRefImage}
-                className="absolute top-1 right-1 w-4 h-4 bg-black/60 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute top-2 right-2 w-6 h-6 bg-black/60 text-white rounded-full flex items-center justify-center hover:bg-black/80"
+                aria-label="Remove reference"
               >
-                <X className="w-3 h-3" />
+                <X size={12} />
               </button>
+              <span className="absolute bottom-2 left-2 text-[10px] px-1.5 py-0.5 rounded bg-black/60 text-white">
+                参考图 · {mode === 'upscale' ? '高清' : '图生图'}
+              </span>
             </div>
-          ) : (
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full h-12 border border-dashed border-border rounded-md flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:bg-muted/30 hover:border-blue-300 transition-colors"
-            >
-              <Upload className="w-3.5 h-3.5" />
-              上传参考图
-            </button>
-          )}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleRefImageUpload}
-            className="hidden"
+          ) : null}
+        </PreviewArea>
+
+        {/* Hidden file input used by upload chip + mode auto-prompt */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleRefImageUpload}
+          className="hidden"
+        />
+
+        {/* Reference images banner (when upstream characterGrid connected) */}
+        {hasRefImages && (
+          <div className="text-[10px] text-[hsl(var(--success))] bg-[hsl(var(--success)/0.08)] border border-[hsl(var(--success)/0.2)] rounded-lg px-2 py-1">
+            ✓ 已连接 {referenceImages?.length ?? 1} 张角色/场景参考图
+          </div>
+        )}
+
+        {/* ── 2. INPUT ── */}
+        <div className="space-y-2">
+          <ModeTabs tabs={MODE_TABS} value={mode} onChange={handleModeChange} />
+          <ActionChips
+            actions={[
+              ...actionChips,
+              {
+                key: 'upload',
+                icon: Upload,
+                label: referenceImage ? '更换参考图' : '上传参考图',
+                variant: 'ghost',
+                onClick: () => fileInputRef.current?.click(),
+                active: !!referenceImage,
+              },
+            ]}
           />
+
+          <div className="relative">
+            <PromptInput
+              value={prompt}
+              onChange={handlePromptChange}
+              extraRefs={extraAssetRefs}
+              onExtraRefsChange={handleExtraRefsChange}
+              onKeyDown={handleSlashKeyDown}
+              placeholder={referenceImage ? '描述如何编辑参考图，@引用素材' : '描述你想要生成的画面内容，@引用素材'}
+              rows={3}
+              className="libtv-prompt"
+            />
+            <SlashMenu
+              visible={slashState.visible}
+              anchorX={slashState.anchorX}
+              anchorY={slashState.anchorY}
+              onSelect={handleSlashSelect}
+              onClose={closeSlash}
+            />
+          </div>
         </div>
 
-        {/* Prompt Input with @ autocomplete + chip row */}
-        <div className="relative">
-          <PromptInput
-            value={prompt}
-            onChange={handlePromptChange}
-            extraRefs={extraAssetRefs}
-            onExtraRefsChange={handleExtraRefsChange}
-            onKeyDown={handleSlashKeyDown}
-            placeholder={referenceImage ? '描述如何编辑参考图... (@ 引用素材 / 打开菜单)' : '输入图片描述提示词... (@ 引用素材 / 打开菜单)'}
-            rows={3}
-            className="w-full text-xs rounded-md border border-border bg-muted/30 p-2 resize-none focus:outline-none focus:ring-1 focus:ring-blue-400 placeholder:text-muted-foreground/50"
-          />
-          <SlashMenu
-            visible={slashState.visible}
-            anchorX={slashState.anchorX}
-            anchorY={slashState.anchorY}
-            onSelect={handleSlashSelect}
-            onClose={closeSlash}
-          />
-        </div>
+        {/* ── 3. TOOLBAR ── */}
+        <NodeToolbar
+          left={
+            <>
+              <ParamPopover
+                align="start"
+                width={280}
+                trigger={({ toggle }) => (
+                  <button type="button" className="libtv-chip" onClick={toggle}>
+                    <Sparkles size={12} strokeWidth={2} className="text-[hsl(var(--libtv-accent))]" />
+                    <span className="truncate max-w-[120px]" title={currentModelInfo?.name || modelId}>
+                      {currentModelInfo?.name || modelId}
+                    </span>
+                    <ChevronDown size={11} strokeWidth={2} />
+                  </button>
+                )}
+              >
+                <div className="space-y-0.5 max-h-[240px] overflow-y-auto">
+                  {imageModels.length === 0 && (
+                    <div className="text-[11px] text-[hsl(var(--libtv-muted))] p-2">加载模型列表...</div>
+                  )}
+                  {modelsError && (
+                    <div className="text-[11px] text-[hsl(var(--destructive))] p-2 flex items-center justify-between">
+                      <span>加载失败</span>
+                      <button type="button" onClick={retryModels} className="underline">重试</button>
+                    </div>
+                  )}
+                  {imageModels.map(m => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => handleModelChange(m.id)}
+                      className={`w-full text-left px-2 py-1.5 rounded-md text-[11px] transition-colors ${
+                        m.id === modelId
+                          ? 'bg-[hsl(var(--libtv-accent)/0.15)] text-[hsl(var(--libtv-accent))]'
+                          : 'hover:bg-[hsl(var(--libtv-chip-bg))]'
+                      }`}
+                    >
+                      <div className="font-medium">{m.name}</div>
+                      {m.description && (
+                        <div className="text-[10px] text-[hsl(var(--libtv-muted))] truncate mt-0.5">
+                          {m.description}
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </ParamPopover>
 
-        {/* Error Message */}
+              {(aspectSchema || sizeSchema) && (
+                <ParamPopover
+                  align="start"
+                  width={340}
+                  trigger={({ toggle }) => (
+                    <button type="button" className="libtv-chip" onClick={toggle}>
+                      <span className="w-3 h-2.5 rounded-sm border border-current opacity-70" />
+                      <span>{paramSummary}</span>
+                      <ChevronDown size={11} strokeWidth={2} />
+                    </button>
+                  )}
+                >
+                  {paramDrawer}
+                </ParamPopover>
+              )}
+
+              {cntSchema && (
+                <button type="button" className="libtv-chip" onClick={() => {
+                  const next = countValue >= 4 ? 1 : countValue + 1
+                  updateNodeData(id, { [cntSchema.key]: next })
+                }}>
+                  <span>{countValue}张</span>
+                  <ChevronDown size={11} strokeWidth={2} />
+                </button>
+              )}
+            </>
+          }
+          right={
+            <SubmitButton
+              onClick={handleGenerate}
+              disabled={!prompt.trim() || isGenerating}
+              loading={isGenerating}
+            />
+          }
+        />
+
+        {/* ── 4. SECONDARY BANNERS ── */}
         {errorMsg && (
-          <div className="text-[10px] text-red-500 bg-red-50 rounded px-2 py-1 break-all">
+          <div className="text-[10px] text-[hsl(var(--destructive))] bg-[hsl(var(--destructive)/0.08)] border border-[hsl(var(--destructive)/0.2)] rounded-lg px-2 py-1.5 break-all">
             {errorMsg}
           </div>
         )}
-
-        {/* Output Preview */}
-        {displayImage && (
-          <div
-            className="rounded-md overflow-hidden border border-border cursor-zoom-in"
-            onClick={() => window.open(outputImageUrl || outputImage!, '_blank')}
-            title="点击查看原图"
-          >
-            <img src={displayImage} alt="output" className="w-full" />
-          </div>
-        )}
       </div>
-
-      {/* Footer */}
-      <div className="px-4 py-2 border-t border-border">
-        <button
-          onClick={handleGenerate}
-          disabled={!prompt.trim() || status === 'generating'}
-          className={`w-full py-1.5 rounded-md text-xs font-medium flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-            status === 'generating'
-              ? 'bg-yellow-100 text-yellow-700'
-              : status === 'done'
-              ? 'bg-green-500 text-white hover:bg-green-600'
-              : 'bg-blue-500 text-white hover:bg-blue-600'
-          }`}
-        >
-          {status === 'generating' ? (
-            <><Loader2 className="w-3 h-3 animate-spin" /> 生成中...</>
-          ) : status === 'done' ? (
-            <><Play className="w-3 h-3" /> 重新生成</>
-          ) : referenceImage ? (
-            <><Play className="w-3 h-3" /> 编辑图片</>
-          ) : (
-            <><Play className="w-3 h-3" /> 生成图片</>
-          )}
-        </button>
-      </div>
-
-      <Handle type="source" position={Position.Right} id="image-out" className="!w-3 !h-3 !bg-blue-500" />
-    </div>
+    </NodeShell>
   )
 }
 

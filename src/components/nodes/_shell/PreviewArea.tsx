@@ -60,34 +60,38 @@ export default function PreviewArea({
           <div className="w-10 h-10 rounded-full bg-[hsl(var(--libtv-muted)/0.15)] animate-pulse" />
         </div>
       ) : (
-        /* Empty guided state — LibTV signature "尝试：XXX" hint */
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4 gap-4">
-          {PlaceholderIcon && (
-            <div className="w-14 h-14 rounded-xl bg-[hsl(var(--libtv-muted)/0.08)] flex items-center justify-center">
-              <PlaceholderIcon
-                className="w-7 h-7 text-[hsl(var(--libtv-muted)/0.55)]"
-                strokeWidth={1.5}
-              />
-            </div>
-          )}
-          {suggestions && suggestions.length > 0 && (
-            <div className="flex flex-col items-start gap-1">
-              <div className="text-[10px] text-[hsl(var(--libtv-muted)/0.8)] mb-0.5 pl-5 self-start">
-                尝试：
+        /* Empty guided state — LibTV signature "尝试：XXX" hint.
+           Uses flex centering WITHIN the preview box so the content never
+           overflows; we shrink gracefully on narrow aspect ratios. */
+        <div className="absolute inset-0 flex items-center justify-center p-3">
+          <div className="flex flex-col items-center gap-2 max-w-full">
+            {PlaceholderIcon && (
+              <div className="w-10 h-10 rounded-xl bg-[hsl(var(--libtv-muted)/0.08)] flex items-center justify-center shrink-0">
+                <PlaceholderIcon
+                  className="w-5 h-5 text-[hsl(var(--libtv-muted)/0.55)]"
+                  strokeWidth={1.5}
+                />
               </div>
-              {suggestions.map((s, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={s.onClick}
-                  className="flex items-center gap-2 text-[11px] text-[hsl(var(--libtv-chip-fg))] hover:text-[hsl(var(--libtv-accent))] transition-colors pl-1 pr-2 py-1 rounded"
-                >
-                  <s.icon size={13} strokeWidth={1.75} />
-                  <span>{s.label}</span>
-                </button>
-              ))}
-            </div>
-          )}
+            )}
+            {suggestions && suggestions.length > 0 && (
+              <div className="flex flex-col items-start gap-0 min-w-0">
+                <div className="text-[10px] text-[hsl(var(--libtv-muted)/0.7)] mb-0.5 self-start">
+                  尝试：
+                </div>
+                {suggestions.map((s, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={s.onClick}
+                    className="flex items-center gap-1.5 text-[11px] text-[hsl(var(--libtv-chip-fg))] hover:text-[hsl(var(--libtv-accent))] transition-colors py-0.5 rounded whitespace-nowrap"
+                  >
+                    <s.icon size={13} strokeWidth={1.75} />
+                    <span>{s.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
