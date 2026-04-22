@@ -9,12 +9,33 @@
  */
 
 import { useFlowStore } from '@/store/flowStore'
+import { useAssetStore } from '@/store/assetStore'
 import { DEFAULT_IMAGE_MODEL, DEFAULT_VIDEO_MODEL } from '@/providers/modelDefaults'
 import { characterSheetTemplate } from '@/prompts/templates/characterSheet'
 import { sceneSheetTemplate } from '@/prompts/templates/sceneSheet'
 import { renderTemplate } from '@/prompts/promptEngine'
-import { backendApi } from '@/api/backend'
+import { backendApi, type AiModelResponse } from '@/api/backend'
+import type { ParamField } from '@/providers/types'
+import { resolvePromptRefs } from '@/providers/assetReferenceResolver'
+import { injectVideoReferences } from '@/providers/modelReferenceAdapter'
+import { sanitizeForExecute } from '@/providers/paramSanitizer'
 import type { ExecutionResult } from '../nodeExecutor'
+
+// In-memory model cache (populated on first call) so we don't hit the network
+// on every executor invocation. Invalidated implicitly on hard reload.
+let _cachedVideoModels: AiModelResponse[] | null = null
+async function getVideoModel(modelId: string): Promise<AiModelResponse | null> {
+  if (!_cachedVideoModels) {
+    try {
+      const res = await backendApi.listModels('video')
+      _cachedVideoModels = res.items
+    } catch (err) {
+      console.warn('[generationExecutors] listModels failed:', err)
+      return null
+    }
+  }
+  return _cachedVideoModels.find(m => m.model_id === modelId) || null
+}
 
 // ── Shared: auto-inject character appearance anchors into prompt ──
 
@@ -157,17 +178,25 @@ export async function executeImageGen(nodeId: string): Promise<ExecutionResult> 
     return { success: false, message: `图片生成节点「${node.data.label}」缺少 prompt` }
   }
 
-  // 自动注入角色外貌锚定词
-  const anchoredPrompt = buildCharacterAnchorPrefix(basePrompt)
+  // 1) Resolve @assetId tokens in the prompt (expand + collect refs)
+  const assetStore = useAssetStore.getState()
+  const extraAssetRefs = Array.isArray(node.data.assetRefs) ? (node.data.assetRefs as string[]) : []
+  const resolved = resolvePromptRefs(basePrompt, assetStore, extraAssetRefs)
+  if (resolved.unresolved.length > 0) {
+    console.warn('[executeImageGen] unresolved asset tokens:', resolved.unresolved)
+  }
 
-  // 附加 styleLock 注入的风格描述
+  // 2) 自动注入角色外貌锚定词
+  const anchoredPrompt = buildCharacterAnchorPrefix(resolved.expandedPrompt)
+
+  // 3) 附加 styleLock 注入的风格描述
   const stylePrompt = node.data.stylePrompt as string | null
   const prompt = stylePrompt ? `${anchoredPrompt}\n\nStyle: ${stylePrompt}` : anchoredPrompt
 
   const currentModel = String(node.data.model || DEFAULT_IMAGE_MODEL)
   store.updateNodeData(nodeId, { status: 'generating', errorMsg: null, outputImage: null })
 
-  // referenceImages 由上游通过 propagateNodeOutput 写入（支持多角色）
+  // 4) referenceImages 由上游通过 propagateNodeOutput 写入（支持多角色）+ 合并 @资产引用
   const refImages: string[] = []
   const allRefs = node.data.referenceImages as string[] | null
   if (allRefs?.length) {
@@ -175,6 +204,10 @@ export async function executeImageGen(nodeId: string): Promise<ExecutionResult> 
   } else {
     const singleRef = node.data.referenceImage as string | null
     if (singleRef) refImages.push(singleRef)
+  }
+  // Union with resolved asset references (de-duplicated)
+  for (const img of resolved.referenceImages) {
+    if (img && !refImages.includes(img)) refImages.push(img)
   }
 
   try {
@@ -221,35 +254,55 @@ export async function executeVideoGen(nodeId: string): Promise<ExecutionResult> 
     return { success: false, message: `视频生成节点「${node.data.label}」缺少 prompt` }
   }
 
-  // 自动注入角色外貌锚定词
-  const prompt = buildCharacterAnchorPrefix(rawPrompt)
-
   const currentModel = String(node.data.model || DEFAULT_VIDEO_MODEL)
   store.updateNodeData(nodeId, { status: 'generating', errorMsg: null, outputVideo: null, progress: 0 })
 
-  // Collect first/last frame images, prefer COS URLs over base64
-  const rawImages: string[] = []
-  const firstFrame = (node.data.firstFrameImageUrl || node.data.firstFrameImage) as string | undefined
-  const lastFrame = (node.data.lastFrameImageUrl || node.data.lastFrameImage) as string | undefined
-  if (firstFrame) rawImages.push(firstFrame)
-  if (lastFrame) rawImages.push(lastFrame)
-
   try {
-    // Backend handles base64 → URL conversion internally
-    const images = rawImages.length > 0 ? rawImages : undefined
+    // 1) Resolve @assetId tokens (prompt expansion + asset ref aggregation)
+    const assetStore = useAssetStore.getState()
+    const extraAssetRefs = Array.isArray(node.data.assetRefs) ? (node.data.assetRefs as string[]) : []
+    const resolved = resolvePromptRefs(rawPrompt, assetStore, extraAssetRefs)
 
-    // Collect node params
-    const params: Record<string, unknown> = {}
-    const knownVideoParams = ['duration', 'aspect_ratio', 'size', 'resolution', 'mode', 'negative_prompt']
-    for (const key of knownVideoParams) {
-      const val = node.data[key]
-      if (val !== undefined && val !== null && val !== '') params[key] = val
+    // 2) Legacy anchor prefix still applies to the expanded prompt
+    const prompt = buildCharacterAnchorPrefix(resolved.expandedPrompt)
+
+    // 3) Existing first/last frames (prefer COS URLs over base64)
+    const existingImages: string[] = []
+    const firstFrame = (node.data.firstFrameImageUrl || node.data.firstFrameImage) as string | undefined
+    const lastFrame = (node.data.lastFrameImageUrl || node.data.lastFrameImage) as string | undefined
+    if (firstFrame) existingImages.push(firstFrame)
+    if (lastFrame) existingImages.push(lastFrame)
+
+    // 4) Load schema; adapter + sanitizer use it
+    const model = await getVideoModel(currentModel)
+    const schema = (model?.param_schema || []) as ParamField[]
+
+    // 5) Model-specific injection
+    const adaptation = injectVideoReferences(currentModel, schema, {
+      referenceImages: resolved.referenceImages,
+      characterUrls: resolved.characterUrls,
+      timestamps: resolved.timestamps,
+      existingImages,
+    })
+
+    if (adaptation.notes.length > 0) {
+      console.debug('[executeVideoGen] adapter notes:', adaptation.notes)
+    }
+    if (resolved.unresolved.length > 0) {
+      console.warn('[executeVideoGen] unresolved asset tokens:', resolved.unresolved)
+    }
+
+    // 6) Build params → sanitize → re-inject adapter params not in schema
+    const mergedParams = { ...(node.data as Record<string, unknown>), ...adaptation.params }
+    const params = sanitizeForExecute(mergedParams, schema)
+    for (const [key, value] of Object.entries(adaptation.params)) {
+      if (!(key in params)) params[key] = value
     }
 
     const res = await backendApi.submitVideo({
       model_id: currentModel,
       prompt,
-      images,
+      images: adaptation.images.length > 0 ? adaptation.images : undefined,
       params,
     })
     store.updateNodeData(nodeId, { taskId: res.task_id })

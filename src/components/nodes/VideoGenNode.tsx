@@ -1,6 +1,6 @@
 import { memo, useCallback, useMemo } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { Video, Play, Loader2, CheckCircle2, AlertCircle, ImagePlus, Dices } from 'lucide-react'
+import { Video, Play, Loader2, CheckCircle2, AlertCircle, ImagePlus, Dices, RefreshCw } from 'lucide-react'
 import { useFlowStore } from '@/store/flowStore'
 import { DEFAULT_VIDEO_MODEL } from '@/providers/modelDefaults'
 import { useBackendModels } from '@/hooks/useBackendModels'
@@ -8,6 +8,11 @@ import { backendApi } from '@/api/backend'
 import type { ModelInfo, ParamField } from '@/providers/types'
 import { useSlashMenu } from '@/hooks/useSlashMenu'
 import SlashMenu, { type SlashCommand } from '@/components/canvas/SlashMenu'
+import { sanitizeForExecute, sanitizeOnModelSwitch } from '@/providers/paramSanitizer'
+import { resolvePromptRefs } from '@/providers/assetReferenceResolver'
+import { injectVideoReferences } from '@/providers/modelReferenceAdapter'
+import { useAssetStore } from '@/store/assetStore'
+import PromptInput from '@/components/ui/PromptInput'
 
 // ── Toggle Switch ──
 function Toggle({ checked, onChange, label }: { checked: boolean; onChange: () => void; label: string }) {
@@ -187,7 +192,7 @@ function DynamicParams({ schema, data, onChange }: {
 }
 
 function VideoGenNode({ id, data, selected }: NodeProps) {
-  const { models: backendVideoModels } = useBackendModels('video')
+  const { models: backendVideoModels, loading: modelsLoading, error: modelsError, retry: retryModels } = useBackendModels('video')
   const ALL_VIDEO_MODELS = useMemo(() => {
     if (backendVideoModels.length > 0) {
       return backendVideoModels.map(m => ({
@@ -247,8 +252,16 @@ function VideoGenNode({ id, data, selected }: NodeProps) {
     return parts
   }, [paramSchema, data])
 
-  const handlePromptChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    updateNodeData(id, { prompt: e.target.value })
+  const handlePromptChange = useCallback((next: string) => {
+    updateNodeData(id, { prompt: next })
+  }, [id, updateNodeData])
+
+  const extraAssetRefs = useMemo(
+    () => (Array.isArray(data.assetRefs) ? (data.assetRefs as string[]) : []),
+    [data.assetRefs],
+  )
+  const handleExtraRefsChange = useCallback((refs: string[]) => {
+    updateNodeData(id, { assetRefs: refs })
   }, [id, updateNodeData])
 
   const addNode = useFlowStore((s) => s.addNode)
@@ -269,12 +282,18 @@ function VideoGenNode({ id, data, selected }: NodeProps) {
     const newModelId = e.target.value
     const bm = backendVideoModels.find(m => m.model_id === newModelId)
     const schema = (bm?.param_schema?.length ? bm.param_schema : []) as ParamField[]
-    const defaults: Record<string, unknown> = { model: newModelId }
-    for (const field of schema) {
-      if (field.default !== undefined) defaults[field.key] = field.default
+    // Current node data may still contain fields from the previous model — delegate cleanup
+    const currentData = (nodes.find(n => n.id === id)?.data || {}) as Record<string, unknown>
+    const { clean, removed } = sanitizeOnModelSwitch(currentData, schema)
+    if (removed.length > 0) {
+      // Explicitly null out removed keys so Zustand shallow-merge drops them from data
+      const nullify: Record<string, unknown> = {}
+      for (const k of removed) nullify[k] = undefined
+      updateNodeData(id, { ...nullify, ...clean, model: newModelId })
+    } else {
+      updateNodeData(id, { ...clean, model: newModelId })
     }
-    updateNodeData(id, defaults)
-  }, [id, updateNodeData, backendVideoModels])
+  }, [id, updateNodeData, backendVideoModels, nodes])
 
   const handleParamChange = useCallback((key: string, value: unknown) => {
     updateNodeData(id, { [key]: value })
@@ -289,29 +308,55 @@ function VideoGenNode({ id, data, selected }: NodeProps) {
     updateNodeData(id, { status: 'generating', errorMsg: null, outputVideo: null, progress: 0 })
 
     try {
-      const images: string[] = []
+      // 1) Resolve @assetId tokens in the prompt → expanded text + aggregated refs
+      const assetStore = useAssetStore.getState()
+      const refList = Array.isArray(data.assetRefs) ? (data.assetRefs as string[]) : []
+      const resolved = resolvePromptRefs(currentPrompt, assetStore, refList)
+
+      // 2) Gather explicit first/last frames from the node itself
+      const existingImages: string[] = []
       const firstFrame = (data.firstFrameImage || data.firstFrameImageUrl) as string | undefined
       const lastFrame = (data.lastFrameImage || data.lastFrameImageUrl) as string | undefined
-      if (firstFrame) images.push(firstFrame)
-      if (lastFrame) images.push(lastFrame)
+      if (firstFrame) existingImages.push(firstFrame)
+      if (lastFrame) existingImages.push(lastFrame)
 
-      // Build params from schema (schema-driven, not hardcoded)
+      // 3) Pick schema for sanitizer + adapter
       const bm = backendVideoModels.find(m => m.model_id === currentModel)
       const schema = (bm?.param_schema?.length ? bm.param_schema : []) as ParamField[]
-      const params: Record<string, unknown> = {}
-      for (const field of schema) {
-        const val = data[field.key]
-        if (val !== undefined && val !== null && val !== '') {
-          params[field.key] = val
-        } else if (field.default !== undefined) {
-          params[field.key] = field.default
-        }
+
+      // 4) Model-specific injection: reference images → correct fields for this model
+      const adaptation = injectVideoReferences(currentModel, schema, {
+        referenceImages: resolved.referenceImages,
+        characterUrls: resolved.characterUrls,
+        timestamps: resolved.timestamps,
+        existingImages,
+      })
+
+      // Surface adapter notes + unresolved tokens to the node itself so the
+      // user can see truncation/ignored-field warnings without opening devtools.
+      updateNodeData(id, {
+        adapterNotes: adaptation.notes.length > 0 ? adaptation.notes : undefined,
+        unresolvedRefs: resolved.unresolved.length > 0 ? resolved.unresolved : undefined,
+      })
+      if (adaptation.notes.length > 0) {
+        console.debug('[VideoGenNode] adapter notes:', adaptation.notes)
+      }
+      if (resolved.unresolved.length > 0) {
+        console.warn('[VideoGenNode] unresolved asset tokens:', resolved.unresolved)
+      }
+
+      // 5) Merge node-driven params with adapter-added params, then sanitize
+      const mergedParams = { ...(data as Record<string, unknown>), ...adaptation.params }
+      const params = sanitizeForExecute(mergedParams, schema)
+      // adapter fields may be schema-absent (e.g. sora characterUrl) → re-inject after sanitize
+      for (const [key, value] of Object.entries(adaptation.params)) {
+        if (!(key in params)) params[key] = value
       }
 
       const res = await backendApi.submitVideo({
         model_id: currentModel,
-        prompt: currentPrompt,
-        images: images.length > 0 ? images : undefined,
+        prompt: resolved.expandedPrompt,
+        images: adaptation.images.length > 0 ? adaptation.images : undefined,
         params,
       })
       updateNodeData(id, { taskId: res.task_id })
@@ -374,6 +419,23 @@ function VideoGenNode({ id, data, selected }: NodeProps) {
 
       {/* Content */}
       <div className="px-3 py-2.5 space-y-2.5">
+        {/* Model load error banner */}
+        {modelsError && (
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-red-500/10 border border-red-300/60 text-[10px] text-red-700">
+            <AlertCircle className="w-3 h-3 flex-shrink-0" />
+            <div className="flex-1 min-w-0 truncate" title={modelsError}>
+              模型列表加载失败（fallback，非完整）
+            </div>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); retryModels() }}
+              className="flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-red-300 hover:bg-red-500/20 text-red-700 font-medium"
+            >
+              <RefreshCw className="w-2.5 h-2.5" /> 重试
+            </button>
+          </div>
+        )}
+
         {/* Model Selector */}
         <div>
           <select
@@ -426,16 +488,26 @@ function VideoGenNode({ id, data, selected }: NodeProps) {
         {/* Divider */}
         <div className="border-t border-border/30" />
 
-        {/* Dynamic Params from Schema */}
-        <DynamicParams schema={paramSchema} data={data} onChange={handleParamChange} />
+        {/* Dynamic Params from Schema — show skeleton while loading */}
+        {modelsLoading && paramSchema.length === 0 ? (
+          <div className="space-y-1.5 animate-pulse" aria-label="加载模型参数中">
+            <div className="h-[18px] rounded bg-muted/40" />
+            <div className="h-[18px] rounded bg-muted/40 w-5/6" />
+            <div className="h-[18px] rounded bg-muted/40 w-4/6" />
+          </div>
+        ) : (
+          <DynamicParams schema={paramSchema} data={data} onChange={handleParamChange} />
+        )}
 
-        {/* Prompt Input */}
+        {/* Prompt Input with @ autocomplete + chip row */}
         <div className="relative">
-          <textarea
+          <PromptInput
             value={prompt}
             onChange={handlePromptChange}
+            extraRefs={extraAssetRefs}
+            onExtraRefsChange={handleExtraRefsChange}
             onKeyDown={handleSlashKeyDown}
-            placeholder="输入视频描述提示词... (输入 / 打开菜单)"
+            placeholder="输入视频描述提示词... (@ 引用素材 / 打开菜单)"
             rows={3}
             className="w-full text-xs rounded-lg border border-border/60 bg-muted/20 p-2 resize-none focus:outline-none focus:border-rose-400/60 placeholder:text-muted-foreground/30"
           />
@@ -463,6 +535,34 @@ function VideoGenNode({ id, data, selected }: NodeProps) {
                 style={{ width: `${Math.max(progress, 5)}%` }}
               />
             </div>
+          </div>
+        )}
+
+        {/* Adapter Notes — model-specific truncation / ignored fields from injectVideoReferences */}
+        {Array.isArray(data.adapterNotes) && (data.adapterNotes as string[]).length > 0 && (
+          <div className="text-[10px] text-amber-600 dark:text-amber-400 bg-amber-500/5 border border-amber-500/20 rounded-lg px-2 py-1.5 space-y-0.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-medium">⚠ 模型适配提示</span>
+              <button
+                type="button"
+                onClick={() => updateNodeData(id, { adapterNotes: undefined })}
+                className="text-amber-600/70 hover:text-amber-600 text-[10px]"
+                aria-label="关闭提示"
+              >
+                ✕
+              </button>
+            </div>
+            {(data.adapterNotes as string[]).map((note, i) => (
+              <div key={i} className="leading-tight break-all">· {note}</div>
+            ))}
+          </div>
+        )}
+
+        {/* Unresolved @ref tokens — warn about assets that don't exist (deleted, typo, etc.) */}
+        {Array.isArray(data.unresolvedRefs) && (data.unresolvedRefs as string[]).length > 0 && (
+          <div className="text-[10px] text-orange-600 dark:text-orange-400 bg-orange-500/5 border border-orange-500/20 rounded-lg px-2 py-1.5">
+            <div className="font-medium">⚠ 未解析引用: {(data.unresolvedRefs as string[]).map(t => `@${t}`).join(', ')}</div>
+            <div className="opacity-70 leading-tight mt-0.5">请检查素材是否被删除，或在素材库中重新绑定</div>
           </div>
         )}
 

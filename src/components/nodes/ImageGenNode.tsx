@@ -1,6 +1,6 @@
 import { memo, useCallback, useMemo, useRef } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { ImageIcon, Play, Loader2, CheckCircle2, AlertCircle, Upload, X } from 'lucide-react'
+import { ImageIcon, Play, Loader2, CheckCircle2, AlertCircle, Upload, X, RefreshCw } from 'lucide-react'
 import { useFlowStore } from '@/store/flowStore'
 import { backendApi } from '@/api/backend'
 import { DEFAULT_IMAGE_MODEL } from '@/providers/modelDefaults'
@@ -8,9 +8,11 @@ import type { ParamField } from '@/providers/types'
 import { useBackendModels } from '@/hooks/useBackendModels'
 import { useSlashMenu } from '@/hooks/useSlashMenu'
 import SlashMenu, { type SlashCommand } from '@/components/canvas/SlashMenu'
+import { sanitizeForExecute, sanitizeOnModelSwitch } from '@/providers/paramSanitizer'
+import PromptInput from '@/components/ui/PromptInput'
 
 function ImageGenNode({ id, data, selected }: NodeProps) {
-  const { models: backendImageModels } = useBackendModels('image')
+  const { models: backendImageModels, error: modelsError, retry: retryModels } = useBackendModels('image')
   const imageModels = useMemo(() => {
     return backendImageModels.map(m => ({ id: m.model_id, name: m.name, description: m.description }))
   }, [backendImageModels])
@@ -54,13 +56,32 @@ function ImageGenNode({ id, data, selected }: NodeProps) {
     }
   }, [closeSlash, addNode, nodes, id])
 
-  const handlePromptChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    updateNodeData(id, { prompt: e.target.value })
+  const handlePromptChange = useCallback((next: string) => {
+    updateNodeData(id, { prompt: next })
+  }, [id, updateNodeData])
+
+  const extraAssetRefs = useMemo(
+    () => (Array.isArray(data.assetRefs) ? (data.assetRefs as string[]) : []),
+    [data.assetRefs],
+  )
+  const handleExtraRefsChange = useCallback((refs: string[]) => {
+    updateNodeData(id, { assetRefs: refs })
   }, [id, updateNodeData])
 
   const handleModelChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
-    updateNodeData(id, { model: e.target.value })
-  }, [id, updateNodeData])
+    const newModelId = e.target.value
+    const bm = backendImageModels.find(m => m.model_id === newModelId)
+    const schema = (bm?.param_schema?.length ? bm.param_schema : []) as ParamField[]
+    const currentData = (nodes.find(n => n.id === id)?.data || {}) as Record<string, unknown>
+    const { clean, removed } = sanitizeOnModelSwitch(currentData, schema)
+    if (removed.length > 0) {
+      const nullify: Record<string, unknown> = {}
+      for (const k of removed) nullify[k] = undefined
+      updateNodeData(id, { ...nullify, ...clean, model: newModelId })
+    } else {
+      updateNodeData(id, { ...clean, model: newModelId })
+    }
+  }, [id, updateNodeData, backendImageModels, nodes])
 
   const handleAspectChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
     updateNodeData(id, { aspectRatio: e.target.value })
@@ -97,14 +118,15 @@ function ImageGenNode({ id, data, selected }: NodeProps) {
       const currentRef = data.referenceImage as string | null
       if (currentRef) refImages.push(currentRef)
 
+      const bm = backendImageModels.find(m => m.model_id === currentModel)
+      const schema = (bm?.param_schema?.length ? bm.param_schema : []) as ParamField[]
+      const params = sanitizeForExecute(data as Record<string, unknown>, schema)
+
       const res = await backendApi.generateImage({
         model_id: currentModel,
         prompt: currentPrompt,
         reference_images: refImages.length > 0 ? refImages : undefined,
-        params: {
-          aspectRatio: String(data.aspectRatio || '1:1'),
-          imageSize: String(data.imageSize || '2k'),
-        },
+        params,
       })
       const img = res.images?.[0]
       if (img) {
@@ -118,7 +140,7 @@ function ImageGenNode({ id, data, selected }: NodeProps) {
       const msg = err instanceof Error ? err.message : '生成失败'
       updateNodeData(id, { status: 'error', errorMsg: msg })
     }
-  }, [id, data.prompt, data.model, data.aspectRatio, data.imageSize, data.referenceImage, status, updateNodeData])
+  }, [id, data, status, updateNodeData, backendImageModels])
 
   const borderClass = status === 'generating'
     ? 'border-yellow-400 shadow-yellow-200/50 animate-pulse'
@@ -134,8 +156,9 @@ function ImageGenNode({ id, data, selected }: NodeProps) {
 
   return (
     <div className={`workflow-node bg-card border-2 rounded-xl shadow-lg w-[280px] transition-all duration-300 ${borderClass}`}>
-      <Handle type="target" position={Position.Left} id="prompt-in" className="!w-3 !h-3 !bg-blue-500" style={{ top: '30%' }} />
-      <Handle type="target" position={Position.Left} id="ref-in" className="!w-3 !h-3 !bg-cyan-400" style={{ top: '70%' }} />
+      <Handle type="target" position={Position.Left} id="prompt-in" className="!w-3 !h-3 !bg-blue-500" style={{ top: '25%' }} />
+      <Handle type="target" position={Position.Left} id="ref-in" className="!w-3 !h-3 !bg-cyan-400" style={{ top: '50%' }} />
+      <Handle type="target" position={Position.Left} id="style-in" className="!w-3 !h-3 !bg-amber-500" style={{ top: '75%' }} />
 
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 bg-blue-500/10 rounded-t-xl border-b border-border">
@@ -164,6 +187,23 @@ function ImageGenNode({ id, data, selected }: NodeProps) {
 
       {/* Content */}
       <div className="p-3 space-y-2">
+        {/* Model load error banner */}
+        {modelsError && (
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-red-500/10 border border-red-300/60 text-[10px] text-red-700">
+            <AlertCircle className="w-3 h-3 flex-shrink-0" />
+            <div className="flex-1 min-w-0 truncate" title={modelsError}>
+              模型列表加载失败（fallback，非完整）
+            </div>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); retryModels() }}
+              className="flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-red-300 hover:bg-red-500/20 text-red-700 font-medium"
+            >
+              <RefreshCw className="w-2.5 h-2.5" /> 重试
+            </button>
+          </div>
+        )}
+
         {/* Model Selector */}
         <div className="flex items-center justify-between">
           <span className="text-xs text-muted-foreground">模型</span>
@@ -247,13 +287,15 @@ function ImageGenNode({ id, data, selected }: NodeProps) {
           />
         </div>
 
-        {/* Prompt Input */}
+        {/* Prompt Input with @ autocomplete + chip row */}
         <div className="relative">
-          <textarea
+          <PromptInput
             value={prompt}
             onChange={handlePromptChange}
+            extraRefs={extraAssetRefs}
+            onExtraRefsChange={handleExtraRefsChange}
             onKeyDown={handleSlashKeyDown}
-            placeholder={referenceImage ? '描述如何编辑参考图... (输入 / 打开菜单)' : '输入图片描述提示词... (输入 / 打开菜单)'}
+            placeholder={referenceImage ? '描述如何编辑参考图... (@ 引用素材 / 打开菜单)' : '输入图片描述提示词... (@ 引用素材 / 打开菜单)'}
             rows={3}
             className="w-full text-xs rounded-md border border-border bg-muted/30 p-2 resize-none focus:outline-none focus:ring-1 focus:ring-blue-400 placeholder:text-muted-foreground/50"
           />

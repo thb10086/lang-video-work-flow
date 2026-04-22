@@ -3,7 +3,19 @@
  *
  * 定义 LLM 可调用的工具函数 schema，不包含执行逻辑。
  * 执行逻辑见 agentTools.ts → toolHandlers.ts
+ *
+ * 关于 `create_video_node` / `create_image_node` / `create_audio_node`：
+ *   静态版本（下方）是回退方案，当前端尚未加载后端模型列表时使用。
+ *   运行时优先通过 getAgentTools(models) 生成模型感知版本（见 toolSchemaGenerator.ts）。
  */
+
+import type { AiModelResponse } from '@/api/backend'
+import {
+  buildCreateVideoNodeTool,
+  buildCreateImageNodeTool,
+  buildCreateAudioNodeTool,
+  GET_MODEL_PARAMS_TOOL,
+} from './toolSchemaGenerator'
 
 export const AGENT_TOOLS = [
   {
@@ -662,4 +674,126 @@ export const AGENT_TOOLS = [
       },
     },
   },
+  GET_MODEL_PARAMS_TOOL,
+  // ── Asset Library Tools ──
+  {
+    type: 'function' as const,
+    function: {
+      name: 'list_assets',
+      description: '列出素材库中的角色/场景/风格资产。用于在创建节点前查询已有资产，避免重复。支持按 kind 过滤与关键字搜索。',
+      parameters: {
+        type: 'object',
+        properties: {
+          kind: { type: 'string', enum: ['character', 'scene', 'style'], description: '过滤类型（可选）' },
+          search: { type: 'string', description: '名称/描述/asset_id 关键字搜索（可选）' },
+          limit: { type: 'number', description: '最多返回条数，默认 20' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'create_asset',
+      description: '在素材库中创建新的角色/场景/风格资产。成功后返回 asset_id，可用于后续 prompt 中的 @token 引用或 link_asset_to_node。',
+      parameters: {
+        type: 'object',
+        properties: {
+          kind: { type: 'string', enum: ['character', 'scene', 'style'], description: '资产类型' },
+          name: { type: 'string', description: '资产名称（展示用）' },
+          name_en: { type: 'string', description: '英文名（可选，用于稳定 @token）' },
+          appearance: { type: 'string', description: 'kind=character 时必填：角色外貌描述' },
+          environment: { type: 'string', description: 'kind=scene 时必填：场景环境描述' },
+          guide: { type: 'string', description: 'kind=style 时必填：风格指南/关键字' },
+          reference_images: { type: 'array', items: { type: 'string' }, description: '参考图 URL 数组（可选）' },
+        },
+        required: ['kind', 'name'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'update_asset',
+      description: '更新素材库中现有资产的字段（名称/描述/参考图）。仅传需要修改的字段。',
+      parameters: {
+        type: 'object',
+        properties: {
+          asset_id: { type: 'string', description: '资产 ID，如 char_abc123' },
+          name: { type: 'string', description: '新名称（可选）' },
+          appearance: { type: 'string', description: '角色外貌（可选）' },
+          environment: { type: 'string', description: '场景环境（可选）' },
+          guide: { type: 'string', description: '风格指南（可选）' },
+          reference_images: { type: 'array', items: { type: 'string' }, description: '完整替换参考图列表（可选）' },
+        },
+        required: ['asset_id'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'link_asset_to_node',
+      description: '把素材库中的资产链接到画布上的节点（写入 node.data.assetRefs）。之后 resolvePromptRefs 会自动注入其外貌描述与参考图。',
+      parameters: {
+        type: 'object',
+        properties: {
+          node_id: { type: 'string', description: '目标节点 ID' },
+          asset_id: { type: 'string', description: '要链接的资产 ID' },
+        },
+        required: ['node_id', 'asset_id'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'resolve_prompt_refs',
+      description: '把含 @token 的 prompt 展开为完整文本，并返回参考图/角色 URL/时间戳。用于调试资产引用或在发给外部模型前预览最终 prompt。',
+      parameters: {
+        type: 'object',
+        properties: {
+          prompt: { type: 'string', description: '原始 prompt 文本（含 @assetId 语法）' },
+          extra_refs: { type: 'array', items: { type: 'string' }, description: '额外的 asset_id 列表（可选，来自节点 assetRefs）' },
+        },
+        required: ['prompt'],
+      },
+    },
+  },
 ]
+
+/**
+ * 运行时工具列表构造器 — 将 AGENT_TOOLS 中的 create_video_node / create_image_node /
+ * create_audio_node 替换为基于后端模型列表生成的模型感知版本。
+ *
+ * @param videoModels  已加载的 video capability 模型 (含 param_schema)
+ * @param imageModels  已加载的 image capability 模型
+ * @param audioModels  已加载的 audio capability 模型
+ * @returns 完整的 AGENT_TOOLS 副本，其中三个工具被替换
+ *
+ * 如果某个 capability 的模型列表为空，则保留静态定义（向后兼容）。
+ */
+export function getAgentTools(
+  videoModels: AiModelResponse[] = [],
+  imageModels: AiModelResponse[] = [],
+  audioModels: AiModelResponse[] = [],
+): typeof AGENT_TOOLS {
+  const replacements: Record<string, unknown> = {}
+  if (videoModels.length > 0) {
+    replacements.create_video_node = buildCreateVideoNodeTool(videoModels)
+  }
+  if (imageModels.length > 0) {
+    replacements.create_image_node = buildCreateImageNodeTool(imageModels)
+  }
+  if (audioModels.length > 0) {
+    replacements.create_audio_node = buildCreateAudioNodeTool(audioModels)
+  }
+
+  // Preserve order + replace in place
+  return AGENT_TOOLS.map(t => {
+    const name = t.function?.name
+    if (name && replacements[name]) return replacements[name] as typeof t
+    return t
+  }) as typeof AGENT_TOOLS
+}

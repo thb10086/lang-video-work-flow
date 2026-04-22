@@ -40,6 +40,7 @@ def _build_test_app() -> FastAPI:
     from app.routers.generate import router as generate_router
     from app.routers.upload import router as upload_router
     from app.routers.tasks import router as tasks_router
+    from app.routers.assets import router as assets_router
 
     test_app.include_router(health_router)
     test_app.include_router(models_router)
@@ -47,6 +48,7 @@ def _build_test_app() -> FastAPI:
     test_app.include_router(generate_router)
     test_app.include_router(upload_router)
     test_app.include_router(tasks_router)
+    test_app.include_router(assets_router)
     return test_app
 
 

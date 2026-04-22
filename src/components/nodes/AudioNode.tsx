@@ -3,6 +3,8 @@ import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { Music, Play, Loader2 } from 'lucide-react'
 import { useFlowStore } from '@/store/flowStore'
 import { useBackendModels } from '@/hooks/useBackendModels'
+import { sanitizeOnModelSwitch } from '@/providers/paramSanitizer'
+import type { ParamField } from '@/providers/types'
 
 function AudioNode({ id, data, selected }: NodeProps) {
   const { models: backendAudioModels } = useBackendModels('audio')
@@ -15,10 +17,22 @@ function AudioNode({ id, data, selected }: NodeProps) {
   const text = String(data.text || '')
 
   const updateNodeData = useFlowStore((s) => s.updateNodeData)
+  const nodes = useFlowStore((s) => s.nodes)
 
   const handleModelChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
-    updateNodeData(id, { model: e.target.value })
-  }, [id, updateNodeData])
+    const newModelId = e.target.value
+    const bm = backendAudioModels.find(m => m.model_id === newModelId)
+    const schema = (bm?.param_schema?.length ? bm.param_schema : []) as ParamField[]
+    const currentData = (nodes.find(n => n.id === id)?.data || {}) as Record<string, unknown>
+    const { clean, removed } = sanitizeOnModelSwitch(currentData, schema)
+    if (removed.length > 0) {
+      const nullify: Record<string, unknown> = {}
+      for (const k of removed) nullify[k] = undefined
+      updateNodeData(id, { ...nullify, ...clean, model: newModelId })
+    } else {
+      updateNodeData(id, { ...clean, model: newModelId })
+    }
+  }, [id, updateNodeData, backendAudioModels, nodes])
 
   const handleVoiceChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     updateNodeData(id, { voice: e.target.value })

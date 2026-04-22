@@ -1,11 +1,12 @@
-import { memo, useCallback } from 'react'
+import { memo, useCallback, useState } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { User, Play, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
+import { User, Play, Loader2, CheckCircle2, AlertCircle, Library } from 'lucide-react'
 import { useFlowStore } from '@/store/flowStore'
 import { backendApi } from '@/api/backend'
 import { DEFAULT_IMAGE_MODEL } from '@/providers/modelDefaults'
 import { characterSheetTemplate } from '@/prompts/templates/characterSheet'
 import { renderTemplate } from '@/prompts/promptEngine'
+import { useAssetStore } from '@/store/assetStore'
 
 const ART_STYLES = ['anime', 'realistic', 'cartoon', 'watercolor', 'pixel art', 'comic book', '3D render']
 
@@ -21,6 +22,30 @@ function CharacterGridNode({ id, data, selected }: NodeProps) {
   const errorMsg = data.errorMsg ? String(data.errorMsg) : null
 
   const updateNodeData = useFlowStore((s) => s.updateNodeData)
+  const assetId = data.assetId as string | null | undefined
+  const [savingToLibrary, setSavingToLibrary] = useState(false)
+  const canSaveToLibrary = !assetId && charName.trim().length > 0 && charDesc.trim().length > 0
+  const handleSaveToLibrary = useCallback(async () => {
+    if (!canSaveToLibrary) return
+    setSavingToLibrary(true)
+    try {
+      const refs: string[] = []
+      if (outputImage) refs.push(outputImage)
+      else if (outputImageUrl) refs.push(outputImageUrl)
+      const created = await useAssetStore.getState().create({
+        kind: 'character',
+        name: charName,
+        appearance: charDesc,
+        reference_images: refs,
+      })
+      updateNodeData(id, { assetId: created.asset_id })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '保存失败'
+      updateNodeData(id, { errorMsg: msg })
+    } finally {
+      setSavingToLibrary(false)
+    }
+  }, [canSaveToLibrary, charName, charDesc, outputImage, outputImageUrl, id, updateNodeData])
 
   const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     updateNodeData(id, { name: e.target.value, label: `角色: ${e.target.value || '新角色'}` })
@@ -85,9 +110,29 @@ function CharacterGridNode({ id, data, selected }: NodeProps) {
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 bg-purple-500/10 rounded-t-xl border-b border-border">
         <User className="w-4 h-4 text-purple-500" />
-        <span className="font-semibold text-sm">{label}</span>
-        {status === 'done' && <CheckCircle2 className="w-3.5 h-3.5 text-green-500 ml-auto" />}
-        {status === 'error' && <AlertCircle className="w-3.5 h-3.5 text-red-500 ml-auto" />}
+        <span className="font-semibold text-sm flex-1 truncate">{label}</span>
+        {assetId ? (
+          <span
+            className="flex items-center gap-0.5 text-[9px] text-green-700 bg-green-500/15 border border-green-300/60 rounded-full px-1.5 py-0.5"
+            title={`已保存到素材库：${assetId}`}
+          >
+            <Library className="w-2.5 h-2.5" />
+            库内
+          </span>
+        ) : canSaveToLibrary ? (
+          <button
+            type="button"
+            onClick={handleSaveToLibrary}
+            disabled={savingToLibrary}
+            className="flex items-center gap-0.5 text-[10px] font-medium text-purple-700 bg-purple-500/15 border border-purple-300/60 rounded-full px-2 py-0.5 hover:bg-purple-500/25 disabled:opacity-50"
+            title="保存为素材库中的角色资产"
+          >
+            {savingToLibrary ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Library className="w-2.5 h-2.5" />}
+            保存
+          </button>
+        ) : null}
+        {status === 'done' && <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />}
+        {status === 'error' && <AlertCircle className="w-3.5 h-3.5 text-red-500" />}
       </div>
 
       {/* Content */}

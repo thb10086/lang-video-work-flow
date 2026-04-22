@@ -13,7 +13,9 @@ import '@xyflow/react/dist/style.css'
 import { useFlowStore } from '@/store/flowStore'
 import { useSettingsStore } from '@/store/settingsStore'
 import { useUIStore } from '@/store/uiStore'
+import { useAssetStore } from '@/store/assetStore'
 import { canConnect } from '@/types/portRegistry'
+import type { AssetDTO, AssetKind } from '@/api/backend'
 import CanvasToolbar from '@/components/canvas/CanvasToolbar'
 import QuickNodePanel from '@/components/canvas/QuickNodePanel'
 import CanvasContextMenu from '@/components/canvas/CanvasContextMenu'
@@ -55,6 +57,51 @@ const BG_VARIANT_MAP: Record<string, BackgroundVariant> = {
   dots: BackgroundVariant.Dots,
   lines: BackgroundVariant.Lines,
   cross: BackgroundVariant.Cross,
+}
+
+/**
+ * Map an asset kind to the default node that best represents it on the canvas,
+ * pre-filling name + description + outputImage so the node is ready-to-use.
+ */
+function nodeDefaultFromAsset(asset: AssetDTO, kind: AssetKind): {
+  nodeType: string
+  initialData: Record<string, unknown>
+} {
+  const primaryImage = asset.reference_images?.[0] || null
+  const baseData = {
+    label: asset.name,
+    assetId: asset.asset_id,
+    outputImage: primaryImage,
+  }
+  if (kind === 'character') {
+    return {
+      nodeType: 'characterGrid',
+      initialData: {
+        ...baseData,
+        name: asset.name,
+        description: asset.appearance || '',
+      },
+    }
+  }
+  if (kind === 'scene') {
+    return {
+      nodeType: 'sceneGrid',
+      initialData: {
+        ...baseData,
+        name: asset.name,
+        description: asset.environment || '',
+      },
+    }
+  }
+  // style
+  return {
+    nodeType: 'styleLock',
+    initialData: {
+      ...baseData,
+      styleName: asset.name,
+      styleDescription: asset.guide || '',
+    },
+  }
 }
 
 function WorkflowCanvas() {
@@ -162,16 +209,32 @@ function WorkflowCanvas() {
   const onDrop = useCallback(
     (event: DragEvent) => {
       event.preventDefault()
-
-      const type = event.dataTransfer.getData('application/reactflow-type')
-      const dataStr = event.dataTransfer.getData('application/reactflow-data')
-
-      if (!type || !reactFlowRef.current) return
+      if (!reactFlowRef.current) return
 
       const position = reactFlowRef.current.screenToFlowPosition({
         x: event.clientX,
         y: event.clientY,
       })
+
+      // ── Priority 1: Asset library drop ──
+      const assetId = event.dataTransfer.getData('application/x-asset-id')
+      const assetKind = event.dataTransfer.getData('application/x-asset-kind') as AssetKind | ''
+      if (assetId) {
+        const assetStore = useAssetStore.getState()
+        const resolved = assetStore.resolve(assetId)
+        const asset: AssetDTO | undefined = resolved?.asset
+        if (!asset) return
+
+        const { nodeType, initialData } = nodeDefaultFromAsset(asset, assetKind || asset.kind)
+        addNode(nodeType, position, initialData)
+        return
+      }
+
+      // ── Priority 2: node palette drop ──
+      const type = event.dataTransfer.getData('application/reactflow-type')
+      const dataStr = event.dataTransfer.getData('application/reactflow-data')
+
+      if (!type) return
 
       try {
         const data = JSON.parse(dataStr)

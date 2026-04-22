@@ -11,6 +11,7 @@
  */
 
 import { useFlowStore } from '@/store/flowStore'
+import { useAssetStore } from '@/store/assetStore'
 import { DEFAULT_IMAGE_MODEL, DEFAULT_VIDEO_MODEL, DEFAULT_VIDEO_SIZE, DEFAULT_VIDEO_DURATION, DEFAULT_VIDEO_RESOLUTION } from '@/providers/modelDefaults'
 import { triggerFitView } from './toolHelpers'
 import type { ToolCallResult } from './toolHelpers'
@@ -44,7 +45,9 @@ const ROW_START = 60
 class WB {
   nodeIds: string[] = []
   edgeCount = 0
+  assetCount = 0
   private store = useFlowStore.getState()
+  private assetStore = useAssetStore.getState()
 
   add(type: string, pos: { x: number; y: number }, data: Record<string, unknown>): string {
     const id = this.store.addNode(type, pos, data)
@@ -61,11 +64,29 @@ class WB {
     this.store.setCharacterAppearance(name, desc)
   }
 
+  /**
+   * Seed a character into the Asset Library (sync, local). Legacy
+   * `characterAppearances` is mirrored too so older executors keep working.
+   */
+  seedCharacter(name: string, appearance: string): string {
+    const asset = this.assetStore.seedLocal({ kind: 'character', name, appearance })
+    this.assetCount++
+    this.registerChar(name, appearance)
+    return asset.asset_id
+  }
+
+  seedScene(name: string, environment: string): string {
+    const asset = this.assetStore.seedLocal({ kind: 'scene', name, environment })
+    this.assetCount++
+    return asset.asset_id
+  }
+
   summary(title: string, extra: string): ToolCallResult {
     setTimeout(() => triggerFitView(), 300)
+    const assetPart = this.assetCount > 0 ? `${this.assetCount} 个素材入库, ` : ''
     return {
       success: true,
-      message: `已生成「${title}」工作流：${extra}共 ${this.nodeIds.length} 个节点, ${this.edgeCount} 条连线。`,
+      message: `已生成「${title}」工作流：${extra}${assetPart}共 ${this.nodeIds.length} 个节点, ${this.edgeCount} 条连线。`,
       nodeIds: this.nodeIds,
     }
   }
@@ -73,38 +94,58 @@ class WB {
 
 // ── Shared: create character grids ──
 
-function addCharacters(wb: WB, args: WorkflowArgs, style: string, startRow: number): string[] {
-  const ids: string[] = []
+interface AssetBoundIds {
+  nodeIds: string[]
+  assetIds: string[]
+}
+
+function addCharacters(wb: WB, args: WorkflowArgs, style: string, startRow: number): AssetBoundIds {
+  const nodeIds: string[] = []
+  const assetIds: string[] = []
   args.characterNames.forEach((name, i) => {
     const desc = args.characterDescriptions[i] || `${name}, a character in "${args.title}". Distinctive appearance with consistent clothing and recognizable features.`
+    const assetId = wb.seedCharacter(name, desc)
     const id = wb.add('characterGrid', { x: COL.prep, y: ROW_START + (startRow + i) * ROW_H }, {
       label: `角色: ${name}`, name, description: desc, style, outputImage: null, status: 'idle',
+      assetId,
     })
-    ids.push(id)
-    wb.registerChar(name, desc)
+    nodeIds.push(id)
+    assetIds.push(assetId)
   })
-  return ids
+  return { nodeIds, assetIds }
 }
 
 // ── Shared: create scene grids ──
 
-function addScenes(wb: WB, args: WorkflowArgs, startRow: number): string[] {
-  const ids: string[] = []
+function addScenes(wb: WB, args: WorkflowArgs, startRow: number): AssetBoundIds {
+  const nodeIds: string[] = []
+  const assetIds: string[] = []
   args.sceneNames.forEach((name, i) => {
     const desc = args.sceneDescriptions[i] || `${name} in "${args.title}". Detailed environment with cinematic lighting.`
+    const assetId = wb.seedScene(name, desc)
     const id = wb.add('sceneGrid', { x: COL.prep, y: ROW_START + (startRow + i) * ROW_H }, {
       label: `场景: ${name}`, name, description: desc, style: 'cinematic', mood: 'dramatic', outputImage: null, status: 'idle',
+      assetId,
     })
-    ids.push(id)
+    nodeIds.push(id)
+    assetIds.push(assetId)
   })
-  return ids
+  return { nodeIds, assetIds }
 }
 
 // ── Shared: create shot pairs (keyframe + video) ──
 
-function addShots(wb: WB, args: WorkflowArgs, startRow: number): { imgIds: string[]; vidIds: string[] } {
+interface ShotAssetContext {
+  /** Asset IDs of characters appearing in these shots (bound to every imageGen/videoGen). */
+  charAssetIds?: string[]
+  /** Asset IDs of scenes. Attached as refs so the adapter can pull scene reference images. */
+  sceneAssetIds?: string[]
+}
+
+function addShots(wb: WB, args: WorkflowArgs, startRow: number, assets?: ShotAssetContext): { imgIds: string[]; vidIds: string[] } {
   const imgIds: string[] = []
   const vidIds: string[] = []
+  const refBag = [...(assets?.charAssetIds || []), ...(assets?.sceneAssetIds || [])]
   for (let i = 0; i < args.shotCount; i++) {
     const y = ROW_START + (startRow + i) * ROW_H
     const imgPrompt = args.shotPrompts[i] || `Shot ${i + 1} of "${args.title}": cinematic keyframe, detailed scene`
@@ -112,11 +153,13 @@ function addShots(wb: WB, args: WorkflowArgs, startRow: number): { imgIds: strin
     const imgId = wb.add('imageGen', { x: COL.keyframe, y }, {
       label: `镜头${i + 1} 关键帧`, model: DEFAULT_IMAGE_MODEL, prompt: imgPrompt,
       aspectRatio: '16:9', imageSize: '2k', referenceImage: null, outputImage: null, status: 'idle',
+      ...(refBag.length > 0 ? { assetRefs: [...refBag] } : {}),
     })
     const vidId = wb.add('videoGen', { x: COL.video, y }, {
       label: `镜头${i + 1} 视频`, model: DEFAULT_VIDEO_MODEL, prompt: vidPrompt,
       size: DEFAULT_VIDEO_SIZE, duration: DEFAULT_VIDEO_DURATION, resolution: DEFAULT_VIDEO_RESOLUTION,
       generate_audio: false, outputVideo: null, status: 'idle',
+      ...(refBag.length > 0 ? { assetRefs: [...refBag] } : {}),
     })
     imgIds.push(imgId)
     vidIds.push(vidId)
@@ -150,20 +193,20 @@ function buildShortDrama(wb: WB, args: WorkflowArgs): ToolCallResult {
   })
 
   // Characters (realistic) — after style lock
-  const charIds = addCharacters(wb, args, 'realistic', 2)
+  const chars = addCharacters(wb, args, 'realistic', 2)
 
   // Scenes — after style lock
-  const sceneIds = addScenes(wb, args, 2 + args.characterNames.length)
+  const scenes = addScenes(wb, args, 2 + args.characterNames.length)
 
-  // Shots
-  const { imgIds, vidIds } = addShots(wb, args, 2)
-  charIds.forEach(cid => imgIds.forEach(iid => wb.connect(cid, iid, 'grid-out', 'ref-in')))
+  // Shots — bind character & scene asset refs so every imageGen/videoGen carries the identity contract
+  const { imgIds, vidIds } = addShots(wb, args, 2, { charAssetIds: chars.assetIds, sceneAssetIds: scenes.assetIds })
+  chars.nodeIds.forEach(cid => imgIds.forEach(iid => wb.connect(cid, iid, 'grid-out', 'ref-in')))
   imgIds.forEach(iid => wb.connect(styleId, iid, 'style-out', 'style-in'))
 
   // Stitch (no audio — audio is optional, can be added later)
   addStitch(wb, vidIds, null, ROW_START + Math.floor((args.shotCount + 2) / 2) * ROW_H)
 
-  return wb.summary(args.title, `${charIds.length} 角色(写实), ${sceneIds.length} 场景, ${args.shotCount} 镜头, 风格锁定→角色→场景→分镜→合成。`)
+  return wb.summary(args.title, `${chars.nodeIds.length} 角色(写实), ${scenes.nodeIds.length} 场景, ${args.shotCount} 镜头, 风格锁定→角色→场景→分镜→合成。`)
 }
 
 function buildComicDrama(wb: WB, args: WorkflowArgs): ToolCallResult {
@@ -180,17 +223,17 @@ function buildComicDrama(wb: WB, args: WorkflowArgs): ToolCallResult {
   })
 
   // Characters (anime) — after style lock
-  const charIds = addCharacters(wb, args, 'anime', 2)
+  const chars = addCharacters(wb, args, 'anime', 2)
 
-  // Shots
-  const { imgIds, vidIds } = addShots(wb, args, 2)
-  charIds.forEach(cid => imgIds.forEach(iid => wb.connect(cid, iid, 'grid-out', 'ref-in')))
+  // Shots — bind character asset refs
+  const { imgIds, vidIds } = addShots(wb, args, 2, { charAssetIds: chars.assetIds })
+  chars.nodeIds.forEach(cid => imgIds.forEach(iid => wb.connect(cid, iid, 'grid-out', 'ref-in')))
   imgIds.forEach(iid => wb.connect(styleId, iid, 'style-out', 'style-in'))
 
   // Stitch (no audio — can be added later)
   addStitch(wb, vidIds, null, ROW_START + Math.floor((args.shotCount + 2) / 2) * ROW_H)
 
-  return wb.summary(args.title, `[漫剧模式] ${charIds.length} 角色(anime), ${args.shotCount} 镜头, 风格锁定→角色→分镜→合成。`)
+  return wb.summary(args.title, `[漫剧模式] ${chars.nodeIds.length} 角色(anime), ${args.shotCount} 镜头, 风格锁定→角色→分镜→合成。`)
 }
 
 function buildProductAd(wb: WB, args: WorkflowArgs): ToolCallResult {
@@ -254,9 +297,9 @@ function buildStoreTour(wb: WB, args: WorkflowArgs): ToolCallResult {
   })
 
   // Scenes — after style lock
-  const sceneIds = addScenes(wb, args, 1)
+  const scenes = addScenes(wb, args, 1)
 
-  // Shots with varied camera movements
+  // Shots with varied camera movements — scene asset refs attached for environment consistency
   const cameras = ['dolly forward', 'tracking left', 'crane up', 'handheld follow', 'slow pan right', 'push in']
   const { imgIds, vidIds } = addShots(wb, {
     ...args,
@@ -265,13 +308,13 @@ function buildStoreTour(wb: WB, args: WorkflowArgs): ToolCallResult {
         const cam = cameras[i % cameras.length]
         return `[Camera]: ${cam}. [Subject]: ${args.shotPrompts[i] || `Scene ${i + 1}`}. [Environment]: ${args.sceneNames[i % args.sceneNames.length] || 'interior'}. [Quality]: Vlog 4K, warm grade. [Negative]: No morphing.`
       }),
-  }, 1)
+  }, 1, { sceneAssetIds: scenes.assetIds })
   imgIds.forEach(iid => wb.connect(styleId, iid, 'style-out', 'style-in'))
 
   // Stitch (no audio — can be added later)
   addStitch(wb, vidIds, null, ROW_START + Math.floor((args.shotCount + 1) / 2) * ROW_H)
 
-  return wb.summary(args.title, `[探店模式] ${sceneIds.length} 场景, ${args.shotCount} 镜头(多样运镜), 风格锁定→场景→合成。`)
+  return wb.summary(args.title, `[探店模式] ${scenes.nodeIds.length} 场景, ${args.shotCount} 镜头(多样运镜), 风格锁定→场景→合成。`)
 }
 
 function buildTutorial(wb: WB, args: WorkflowArgs): ToolCallResult {
@@ -312,8 +355,10 @@ function buildMusicVideo(wb: WB, args: WorkflowArgs): ToolCallResult {
     label: '节奏分镜', script: args.description, shots: [], status: 'idle',
   })
 
-  // Characters (if any)
-  const charIds = args.characterNames.length > 0 ? addCharacters(wb, args, 'realistic', 1) : []
+  // Characters (if any) — still seeded to asset library even for MV to keep cross-cut identity
+  const chars: AssetBoundIds = args.characterNames.length > 0
+    ? addCharacters(wb, args, 'realistic', 1)
+    : { nodeIds: [], assetIds: [] }
 
   // Shorter duration, more shots for MV rhythm
   const mvShotCount = Math.max(args.shotCount, 6)
@@ -324,15 +369,15 @@ function buildMusicVideo(wb: WB, args: WorkflowArgs): ToolCallResult {
         const cams = ['whip pan', 'fast dolly', 'dutch angle push', 'crane down', 'tracking orbit', 'snap zoom']
         return `[Camera]: ${cams[i % cams.length]}. [Subject]: ${args.shotPrompts[i] || `Beat ${i + 1}`}. [Quality]: Music video 4K, high contrast. [Negative]: No morphing, no flickering.`
       }),
-  }, 1)
+  }, 1, { charAssetIds: chars.assetIds })
 
-  charIds.forEach(cid => imgIds.forEach(iid => wb.connect(cid, iid, 'grid-out', 'ref-in')))
+  chars.nodeIds.forEach(cid => imgIds.forEach(iid => wb.connect(cid, iid, 'grid-out', 'ref-in')))
   imgIds.forEach(iid => wb.connect(styleId, iid, 'style-out', 'style-in'))
 
   // Stitch (no audio — can be added later)
   addStitch(wb, vidIds, null, ROW_START + Math.floor((mvShotCount + 1) / 2) * ROW_H)
 
-  return wb.summary(args.title, `[MV模式] 风格锁定 + ${mvShotCount} 镜头(快节奏), ${charIds.length} 角色, 合成。`)
+  return wb.summary(args.title, `[MV模式] 风格锁定 + ${mvShotCount} 镜头(快节奏), ${chars.nodeIds.length} 角色, 合成。`)
 }
 
 // ════════════════════════════════════════════════════════════

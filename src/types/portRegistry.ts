@@ -38,6 +38,7 @@ export const NODE_PORT_REGISTRY: Record<string, NodePort[]> = {
   imageGen: [
     { id: 'prompt-in', label: '提示词', dataType: PortDataType.TEXT, direction: 'input', required: false, multi: false },
     { id: 'ref-in', label: '参考图', dataType: PortDataType.IMAGE, direction: 'input', required: false, multi: false },
+    { id: 'style-in', label: '风格', dataType: PortDataType.PROMPT, direction: 'input', required: false, multi: false },
     { id: 'image-out', label: '输出图', dataType: PortDataType.IMAGE, direction: 'output', required: false, multi: true },
   ],
   videoGen: [

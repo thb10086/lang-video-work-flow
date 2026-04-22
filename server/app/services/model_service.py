@@ -104,16 +104,25 @@ class ModelService:
         return model
 
     async def update_model(self, db_id: int, data: dict[str, Any]) -> AiModel | None:
-        """更新模型"""
+        """更新模型。如果 data 中包含 param_schema，则自动自增 schema_version。"""
         result = await self.db.execute(
             select(AiModel).where(AiModel.id == db_id, AiModel.deleted_at.is_(None))
         )
         model = result.scalar_one_or_none()
         if not model:
             return None
+
+        # Detect schema change BEFORE applying updates so we can bump atomically
+        schema_changed = "param_schema" in data and data["param_schema"] is not None
+
         for key, value in data.items():
             if hasattr(model, key) and value is not None:
                 setattr(model, key, value)
+
+        # Auto-bump schema_version on param_schema change (unless caller explicitly set one)
+        if schema_changed and "schema_version" not in data:
+            model.schema_version = (model.schema_version or 0) + 1
+
         await self.db.commit()
         await self.db.refresh(model)
         await self._invalidate_cache()
@@ -144,6 +153,7 @@ class ModelService:
             "capability": m.capability,
             "description": m.description,
             "param_schema": m.param_schema if isinstance(m.param_schema, list) else [],
+            "schema_version": getattr(m, "schema_version", 1) or 1,
             "is_enabled": m.is_enabled,
             "sort_order": m.sort_order,
             "created_at": str(m.created_at) if m.created_at else None,

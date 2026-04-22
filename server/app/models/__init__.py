@@ -9,6 +9,7 @@ from app.models.character import CharacterAppearance
 from app.models.ai_model import AiModel
 from app.models.ai_channel import AiChannel
 from app.models.channel_model_mapping import ChannelModelMapping
+from app.models.asset_library import CharacterAsset, SceneAsset, StyleAsset, WorkflowAssetRef
 
 __all__ = [
     "Base",
@@ -24,4 +25,8 @@ __all__ = [
     "AiModel",
     "AiChannel",
     "ChannelModelMapping",
+    "CharacterAsset",
+    "SceneAsset",
+    "StyleAsset",
+    "WorkflowAssetRef",
 ]

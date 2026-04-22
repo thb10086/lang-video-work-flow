@@ -7,6 +7,7 @@ import {
   MessageSquare,
   Settings,
   LayoutTemplate,
+  Library,
   PanelLeft,
   Maximize2,
   X,
@@ -19,6 +20,8 @@ import { useSettingsStore } from '@/store/settingsStore'
 import { useFlowStore } from '@/store/flowStore'
 import { useUIStore } from '@/store/uiStore'
 import TemplatePanel from '@/components/sidebar/TemplatePanel'
+import AssetLibraryPanel from '@/components/sidebar/AssetLibraryPanel'
+import { startLegacyBridge } from '@/store/assetLegacyBridge'
 
 function App() {
   const initialize = useSettingsStore((s) => s.initialize)
@@ -88,6 +91,10 @@ function App() {
 
   useEffect(() => {
     initialize()
+    // Keep legacy characterAppearances in sync with asset library so the
+    // "auto-inject appearance" logic benefits from library entries.
+    const stop = startLegacyBridge()
+    return () => stop()
   }, [initialize])
 
   const handleExport = useCallback(() => {
@@ -157,6 +164,13 @@ function App() {
               <LayoutTemplate className="w-3 h-3" /> 模板
             </button>
             <button
+              onClick={() => useUIStore.getState().toggleAssetPanel()}
+              className="px-2.5 py-1 text-[11px] rounded-md border border-primary/40 text-primary hover:bg-primary/10 transition-colors flex items-center gap-1"
+              title="素材库 (Ctrl+Shift+A)"
+            >
+              <Library className="w-3 h-3" /> 素材
+            </button>
+            <button
               onClick={handleImport}
               className="px-2.5 py-1 text-[11px] rounded-md border border-border hover:bg-muted transition-colors flex items-center gap-1"
             >
@@ -212,6 +226,9 @@ function App() {
 
       {/* Template Panel Modal */}
       <TemplatePanel open={templatePanelOpen} onClose={() => setTemplatePanelOpen(false)} />
+
+      {/* Asset Library Panel (Ctrl+Shift+A) */}
+      <AssetLibraryPanel />
 
       {/* ── Main Content: Canvas takes full space ── */}
       <div className="flex-1 flex overflow-hidden relative">

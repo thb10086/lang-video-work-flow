@@ -1,7 +1,8 @@
 import { useState, useMemo, useCallback } from 'react'
 import { LayoutTemplate, X, ChevronRight, Film, Image, Clock, Layers } from 'lucide-react'
-import { BUILTIN_TEMPLATES, CATEGORY_LABELS, type WorkflowTemplate } from '@/templates/workflowTemplates'
+import { BUILTIN_TEMPLATES, CATEGORY_LABELS, instantiateTemplate, type WorkflowTemplate } from '@/templates/workflowTemplates'
 import { useFlowStore } from '@/store/flowStore'
+import { useBackendModels } from '@/hooks/useBackendModels'
 
 interface TemplatePanelProps {
   open: boolean
@@ -36,6 +37,15 @@ function TemplatePanel({ open, onClose }: TemplatePanelProps) {
   const importWorkflow = useFlowStore((s) => s.importWorkflow)
   const nodeCount = useFlowStore((s) => s.nodes.length)
 
+  // Load model registry for schema-aware template instantiation
+  const { models: videoModels } = useBackendModels('video')
+  const { models: imageModels } = useBackendModels('image')
+  const { models: audioModels } = useBackendModels('audio')
+  const modelRegistry = useMemo(
+    () => ({ video: videoModels, image: imageModels, audio: audioModels }),
+    [videoModels, imageModels, audioModels],
+  )
+
   const categories = useMemo(
     () => [...new Set(BUILTIN_TEMPLATES.map(t => t.category))],
     []
@@ -52,19 +62,21 @@ function TemplatePanel({ open, onClose }: TemplatePanelProps) {
     if (nodeCount > 0) {
       setConfirmTemplate(template)
     } else {
-      const json = JSON.stringify({ nodes: template.nodes, edges: template.edges })
+      const { nodes, edges } = instantiateTemplate(template, modelRegistry)
+      const json = JSON.stringify({ nodes, edges })
       importWorkflow(json)
       onClose()
     }
-  }, [nodeCount, importWorkflow, onClose])
+  }, [nodeCount, importWorkflow, onClose, modelRegistry])
 
   const handleConfirmApply = useCallback(() => {
     if (!confirmTemplate) return
-    const json = JSON.stringify({ nodes: confirmTemplate.nodes, edges: confirmTemplate.edges })
+    const { nodes, edges } = instantiateTemplate(confirmTemplate, modelRegistry)
+    const json = JSON.stringify({ nodes, edges })
     importWorkflow(json)
     setConfirmTemplate(null)
     onClose()
-  }, [confirmTemplate, importWorkflow, onClose])
+  }, [confirmTemplate, importWorkflow, onClose, modelRegistry])
 
   if (!open) return null
 

@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.channel_service import ChannelService
 from app.services.model_service import ModelService
+from app.services.param_validator import ParamValidationError, validate_params
 from app.services.task_service import TaskService
 
 logger = logging.getLogger("prism.services.video")
@@ -44,6 +45,12 @@ class VideoService:
         if not model:
             raise ValueError(f"Model not found: {model_id}")
 
+        # Validate params against model's schema BEFORE touching channels
+        schema = model.param_schema if isinstance(model.param_schema, list) else []
+        clean_params, violations = validate_params(schema, params)
+        if violations:
+            raise ParamValidationError(model_id, violations)
+
         channels = await self.channel_svc.get_channels_for_model(model.id)
         if not channels:
             raise RuntimeError(f"No channels for model: {model_id}")
@@ -51,7 +58,7 @@ class VideoService:
         submit_params = {
             "prompt": prompt,
             "images": images or [],
-            **(params or {}),
+            **clean_params,
         }
 
         last_error: str | None = None

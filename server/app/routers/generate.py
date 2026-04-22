@@ -15,6 +15,7 @@ from app.schemas.generate import (
     LLMChatResponse,
 )
 from app.services.image_service import ImageService
+from app.services.param_validator import ParamValidationError
 from app.services.video_service import VideoService
 from app.services.llm_service import LLMService
 
@@ -52,6 +53,8 @@ async def generate_image(
                 usage=result.get("usage"),
             )
         )
+    except ParamValidationError as e:
+        raise HTTPException(status_code=422, detail=e.to_http_detail())
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -76,6 +79,8 @@ async def submit_video(
         return SuccessResponse(
             data=VideoTaskResponse(task_id=result["task_id"], status=result["status"])
         )
+    except ParamValidationError as e:
+        raise HTTPException(status_code=422, detail=e.to_http_detail())
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

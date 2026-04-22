@@ -1,0 +1,62 @@
+schema: spec-driven
+
+context: |
+  # Project: AI Video Workflow Studio (Prism)
+  Visual, node-based AI video production platform targeting creators. Frontend-heavy Agent orchestration (Claude Code style) + LangGraph multi-agent backend.
+
+  ## Tech Stack
+  - Frontend: React 18 + TypeScript + @xyflow/react + Zustand 5 + TailwindCSS + Vite
+  - Backend: Python 3.11 + FastAPI + LangGraph + LangChain + SQLAlchemy (async) + MySQL + Redis
+  - LLM: OpenAI-compatible proxy (APIMart). Default models: gpt-5.4 / gemini-3.1-pro-preview / claude-sonnet-4
+  - Image: nano-banana (default) / Gemini / Seedream
+  - Video: doubao-seedance-2-0 (default, supports @reference) / veo3.1 / sora-2-vip / kling-v3
+  - Audio: ElevenLabs / fish-speech / cosyvoice
+  - Storage: COS for generated assets
+
+  ## Key Architectural Principles
+  - DRY: single source of truth for model defaults (src/providers/modelDefaults.ts) and for registered models (backend ai_models table)
+  - Port-type system for node connections, with data propagation engine (propagateNodeOutput + pullFromUpstream)
+  - Three-tier context compaction (MicroCompact/AutoCompact/FullCompact) inspired by Claude Code
+  - Phase-based SKILLS injection reduces prompt size
+  - Character appearance registry (flowStore.characterAppearances) with automatic prompt-anchor injection
+  - Zero API keys in frontend; all model calls routed through backend agent_chat + generate/video endpoints
+
+  ## Directory Conventions
+  - Frontend: src/components/nodes (node UIs), src/providers (agent tools + node executors), src/prompts (templates + roles + skills), src/store (Zustand stores), src/api (backend client)
+  - Backend: server/app/agents (LangGraph + specialists), server/app/tools (canvas/review/generation/translation tools), server/app/services (model/channel/video/image/task services)
+
+  ## Coding Standards
+  - TypeScript strict mode; all tools typed via ToolCallResult interface
+  - Python 3.11+, type hints, async everywhere; TypedDict/Pydantic for schemas
+  - Chinese UI/comments, English LLM prompts (maintain both)
+  - No emojis in code/UI unless explicitly requested
+  - Keep changes minimal and focused; avoid downstream workarounds
+
+  ## Agent Tool Discipline
+  - Tool schemas are source of truth for LLM invocation. Keep Chinese descriptions under 120 chars
+  - Prefer per-capability tools over god-tool patterns
+  - Multi-model parameter diversity must be represented in both UI controls and tool schemas
+
+  ## Reference Docs (maintained)
+  - AGENT_SKILLS_REFERENCE.md, WORKFLOW_TEMPLATES.md, BACKEND_ARCHITECTURE.md, DEV_GUIDE.md in repo root
+
+rules:
+  proposal:
+    - "Always state the user-visible problem first, then technical solution"
+    - "Include explicit Non-goals section to prevent scope creep"
+    - "Reference existing files with @path:lines citations where possible"
+    - "Keep under 400 words for the main body"
+  specs:
+    - "Model each capability as a behavior contract, not implementation detail"
+    - "Include at least 3 acceptance scenarios per capability"
+    - "Flag cross-capability dependencies clearly"
+  design:
+    - "Document data model changes (DB schema, store shape) explicitly"
+    - "Address migration/backward compatibility for existing saved workflows"
+    - "List which specific files will be touched with rationale"
+  tasks:
+    - "Break tasks into 30min-2h chunks"
+    - "Each task must be independently verifiable (mention verification method)"
+    - "Order tasks so backend schema changes precede frontend consumers"
+    - "Mark tasks dependent on external APIs or user decisions clearly"
+

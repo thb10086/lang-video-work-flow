@@ -460,6 +460,52 @@ ${renderNegativePresets()}
 }
 
 // ============================================================
+// 17. 素材库模块 (Asset Library)
+// ============================================================
+const assetLibrary: SkillDefinition = {
+  id: 'asset_library',
+  name: '素材库',
+  summary: '集中管理角色/场景/风格素材，在 prompt 中用 @id 引用，每种视频模型自动走最合适的"参考图/角色URL/首尾帧"通道。',
+  details: `### 素材库模块（Asset Library）
+
+**核心能力**：
+- 集中保存 **角色 / 场景 / 风格** 三类素材，各自带有外貌/环境/风格描述 + 参考图 + 变体。
+- 在任何节点的 prompt 中用 \`@<asset_id>\` 引用，resolvePromptRefs 会自动：
+  1. 将 \`@char_sarah\` 展开为其 \`appearance\` 文本（例如 "red hair, trench coat"）
+  2. 收集其所有 reference_images 作为参考图
+  3. 汇总角色视频 URL（Sora Character API）与时间戳
+  4. 支持变体语法：\`@char_sarah:smiling\` → 合并基础外貌 + 变体 delta
+- 每个视频模型（Seedance / VEO / Sora / Kling）通过 modelReferenceAdapter 自动选择正确通道：
+  - Seedance → \`images\`（支持多张）
+  - VEO 3.1 → \`image_mode=reference\` + 1-2 张参考图；有首帧时自动降级为 \`image_mode=first_frame\`
+  - Sora-2 VIP → \`characterUrl\` + \`characterTimestamps\` 走 Character API
+  - Kling v3 → 仅保留首/尾帧，多余参考图被 drop（日志中有 notes）
+- 前端面板：顶栏「素材」按钮 or \`Ctrl+Shift+A\` 打开右侧抽屉；支持拖拽到画布自动创建对应节点（角色→characterGrid，场景→sceneGrid，风格→styleLock）。
+
+**工具链**：
+- \`list_assets(kind?, search?, limit?)\` → 查询已有素材，避免重复创建；kind 过滤 / 关键字搜索
+- \`create_asset({ kind, name, appearance|environment|guide, reference_images? })\` → 新建素材
+- \`update_asset({ asset_id, ...patch })\` → 修改现有素材
+- \`link_asset_to_node({ node_id, asset_id })\` → 把素材链接到现有节点（写入 node.data.assetRefs，union-merge）
+- \`resolve_prompt_refs({ prompt, extra_refs? })\` → 预览展开结果与最终 references，便于调试
+- 另外：\`create_video_node\` / \`create_image_node\` 已支持 \`assetRefs\` 入参（在创建时直接绑定）
+
+**推荐工作流**：
+1. 开场先 \`list_assets(kind='character')\` 检查已有角色，避免重复。
+2. 若新角色 → \`create_asset({ kind:'character', name:'Sarah', appearance:'red hair, trench coat' })\`。
+3. 创建 videoGen 节点时，prompt 写 "A scene of @char_sarah walking"，不需要手动贴外貌描述。
+4. 切换视频模型不需要修改 prompt——适配器自动把参考图路由到该模型的正确字段。
+5. 想让角色带状态变化？用变体：\`create_asset\` 传 variations[] 或 UI 里加，引用时 \`@char_sarah:smiling\`。
+
+**常见错误**：
+- 在 prompt 里手动贴参考图 URL → 改用素材引用，跨模型自动路由。
+- 不同节点重复写同一角色外貌 → 把外貌放到 asset.appearance，引用即可保持一致。
+- \`@未知id\` → 会产生 \`unresolved\` 警告但不阻塞生成（原 token 保留在 prompt 中）。`,
+  tools: ['list_assets', 'create_asset', 'update_asset', 'link_asset_to_node', 'resolve_prompt_refs'],
+  nodeTypes: ['characterGrid', 'sceneGrid', 'styleLock', 'imageGen', 'videoGen'],
+}
+
+// ============================================================
 // 全部 SKILLS 汇总
 // ============================================================
 export const ALL_SKILLS: SkillDefinition[] = [
@@ -477,6 +523,7 @@ export const ALL_SKILLS: SkillDefinition[] = [
   workflowManagement,
   promptCraft,
   qualityControl,
+  assetLibrary,
   cosUpload,
 ]
 
@@ -519,8 +566,8 @@ export function buildSkillsSummary(): string {
  * - full:           全部（默认）
  */
 const PHASE_SKILL_MAP: Record<string, string[]> = {
-  pre_production: ['character_design', 'scene_design', 'style_lock', 'storyboard', 'workflow_management', 'llm_chat'],
-  production: ['image_generation', 'image_edit', 'video_generation', 'prompt_craft', 'style_lock', 'character_design'],
+  pre_production: ['character_design', 'scene_design', 'style_lock', 'storyboard', 'workflow_management', 'llm_chat', 'asset_library'],
+  production: ['image_generation', 'image_edit', 'video_generation', 'prompt_craft', 'style_lock', 'character_design', 'asset_library'],
   post_production: ['audio_generation', 'continuity_check', 'video_stitch', 'quality_control'],
 }
 

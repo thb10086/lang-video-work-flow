@@ -23,6 +23,9 @@ export interface UIState {
   // 模板面板
   templatePanelOpen: boolean
 
+  // 素材库面板 (Ctrl+Shift+A)
+  assetPanelOpen: boolean
+
   // 全屏模式
   fullscreenMode: boolean
 
@@ -44,6 +47,8 @@ export interface UIState {
   toggleQuickNodePanel: () => void
   setQuickNodePanelOpen: (open: boolean) => void
   setTemplatePanelOpen: (open: boolean) => void
+  toggleAssetPanel: () => void
+  setAssetPanelOpen: (open: boolean) => void
   toggleFullscreen: () => void
   setPendingConnection: (conn: UIState['pendingConnection']) => void
 }
@@ -57,6 +62,7 @@ export const useUIStore = create<UIState>()((set) => ({
   rightTab: 'chat',
   quickNodePanelOpen: false,
   templatePanelOpen: false,
+  assetPanelOpen: false,
   fullscreenMode: false,
   pendingConnection: null,
 
@@ -70,6 +76,8 @@ export const useUIStore = create<UIState>()((set) => ({
   toggleQuickNodePanel: () => set((s) => ({ quickNodePanelOpen: !s.quickNodePanelOpen })),
   setQuickNodePanelOpen: (open) => set({ quickNodePanelOpen: open }),
   setTemplatePanelOpen: (open) => set({ templatePanelOpen: open }),
+  toggleAssetPanel: () => set((s) => ({ assetPanelOpen: !s.assetPanelOpen })),
+  setAssetPanelOpen: (open) => set({ assetPanelOpen: open }),
   toggleFullscreen: () => set((s) => ({ fullscreenMode: !s.fullscreenMode })),
   setPendingConnection: (conn) => set({ pendingConnection: conn }),
 }))

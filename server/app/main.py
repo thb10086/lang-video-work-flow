@@ -74,6 +74,7 @@ from app.routers.generate import router as generate_router
 from app.routers.upload import router as upload_router
 from app.routers.tasks import router as tasks_router
 from app.routers.agent_chat import router as agent_chat_router
+from app.routers.assets import router as assets_router
 
 app.include_router(health_router)
 app.include_router(projects_router)
@@ -86,3 +87,4 @@ app.include_router(generate_router)
 app.include_router(upload_router)
 app.include_router(tasks_router)
 app.include_router(agent_chat_router)
+app.include_router(assets_router)

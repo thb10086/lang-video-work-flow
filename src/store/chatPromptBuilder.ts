@@ -473,7 +473,7 @@ batch_execute(nodeLabels: ["最终合成"])
 
 7. 每个镜头：\`create_image_node\`（label="镜头N 关键帧", prompt=英文图片提示词, aspectRatio）→ \`connect_nodes\`（各 characterGrid→imageGen, ref-in）→ \`connect_nodes\`（styleLock→imageGen, style-in）
 8. \`parallel_execute\`（所有 imageGen, concurrency=4）→ 抽查确认 outputImage
-9. 每个镜头：\`create_video_node\`（label="镜头N 视频", prompt=英文视频提示词, model="doubao-seedance-2-0", size="16:9", duration=5, resolution="720p"）→ \`connect_nodes\`（imageGen→videoGen, first-frame）
+9. 每个镜头：\`create_video_node\`（label="镜头N 视频", prompt=英文视频提示词, model 默认即可；如需非默认模型可先 \`get_model_params\` 获取参数范围）→ \`connect_nodes\`（imageGen→videoGen, first-frame）
 10. \`parallel_execute\`（所有 videoGen, concurrency=4）→ 异步任务，立即返回
 
 **Phase 4 — Post-Production（后期合成）**
@@ -500,18 +500,15 @@ characterGrid.outputImage → imageGen.referenceImages[] → imageGen.outputImag
 
 ${renderPromptEngineeringQuickRef()}
 
-## 视频模型选型指南
+## 模型参数
 
-| 模型 | 推荐场景 | 时长 | 特色参数 |
-|------|---------|------|---------|
-| **doubao-seedance-2-0**（默认推荐） | 通用场景/产品广告/有声视频 | 4-15s | size(7种比例)/resolution/generate_audio/camera_fixed/return_last_frame/seed/参考视频/参考音频 |
-| **doubao-seedance-2-0-fast** | 快速迭代/预览 | 4-15s | 同上，生成更快 |
-| veo3.1-fast | 高质量短片 | 8s | aspect_ratio/resolution |
-| veo3.1 | 最终制作 | 8s | aspect_ratio/resolution |
-| sora-2-vip | OpenAI 风格 | 10-15s | aspect_ratio/style/watermark |
-| kling-v3 | 首尾帧+有声 | 5-15s | aspect_ratio/mode/negative_prompt/audio |
+每个视频/图片/音频模型有自己的参数 schema（来自后端 DB）。\`create_video_node\`/\`create_image_node\`/\`create_audio_node\` 的 schema 会随模型切换自动切换，字段描述中 \`[仅适用于 <ids>]\` 标注非通用字段。
 
-**Seedance 参数说明**：使用 \`size\` 而非 \`aspect_ratio\`；\`generate_audio=true\` 生成有声视频；\`return_last_frame=true\` 返回末帧用于连续生成。
+需要精确参数时：
+- \`list_models\` — 查看当前所有已注册模型（含 capability）
+- \`get_model_params(model_id)\` — 获取某个模型的完整 ParamField schema
+- 默认视频模型见 \`DEFAULT_VIDEO_MODEL\`（当前为 doubao-seedance-2-0）
+- 不支持的字段在提交时会被自动过滤（前端 sanitizer + 后端 422 双保险）
 
 ## 错误处理协议
 

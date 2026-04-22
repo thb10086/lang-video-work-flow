@@ -37,10 +37,16 @@ import {
   handleOptimizePrompt,
   handleDetectScenario,
   handleClassifyImage,
+  handleGetModelParams,
+  handleListAssets,
+  handleCreateAsset,
+  handleUpdateAsset,
+  handleLinkAssetToNode,
+  handleResolvePromptRefs,
 } from './toolHandlers'
 
 // Re-export tool definitions so existing imports still work
-export { AGENT_TOOLS } from './toolDefinitions'
+export { AGENT_TOOLS, getAgentTools } from './toolDefinitions'
 export type { ToolCallResult } from './toolHelpers'
 
 // ============================================================
@@ -87,17 +93,24 @@ export async function executeToolCall(
     }
 
     case 'create_image_node': {
-      const id = store.addNode('imageGen', getSmartPosition(), {
+      const imgModel = String(args.model || DEFAULT_IMAGE_MODEL)
+      const nodeData: Record<string, unknown> = {
         label: '图片生成',
-        model: DEFAULT_IMAGE_MODEL,
+        model: imgModel,
         prompt: String(args.prompt || ''),
-        aspectRatio: String(args.aspectRatio || '1:1'),
-        imageSize: String(args.imageSize || '2k'),
         referenceImage: null,
         outputImage: null,
         status: 'idle',
-      })
-      return { success: true, message: '已创建图片生成节点', nodeIds: [id] }
+      }
+      // Pass-through any other args (schema-declared params). Sanitizer at execute time
+      // will drop unsupported fields for the chosen model.
+      for (const [k, v] of Object.entries(args)) {
+        if (['model', 'prompt'].includes(k)) continue
+        if (v === undefined || v === null) continue
+        nodeData[k] = v
+      }
+      const id = store.addNode('imageGen', getSmartPosition(), nodeData)
+      return { success: true, message: `已创建图片生成节点 (${imgModel})`, nodeIds: [id] }
     }
 
     case 'create_video_node': {
@@ -109,15 +122,13 @@ export async function executeToolCall(
         outputVideo: null,
         status: 'idle',
       }
-      if (args.aspect_ratio) nodeData.aspect_ratio = String(args.aspect_ratio)
-      if (args.duration) nodeData.duration = Number(args.duration)
-      if (args.size) nodeData.size = String(args.size)
-      if (args.resolution) nodeData.resolution = String(args.resolution)
-      if (args.generate_audio !== undefined) nodeData.generate_audio = Boolean(args.generate_audio)
-      if (args.camera_fixed !== undefined) nodeData.camera_fixed = Boolean(args.camera_fixed)
-      if (args.return_last_frame !== undefined) nodeData.return_last_frame = Boolean(args.return_last_frame)
-      if (args.seed !== undefined) nodeData.seed = Number(args.seed)
-      if (args.orientation) nodeData.orientation = String(args.orientation)
+      // Pass-through any other args (schema-declared params). Sanitizer at execute time
+      // will drop unsupported fields for the chosen model; backend validator 422s illegal values.
+      for (const [k, v] of Object.entries(args)) {
+        if (['model', 'prompt'].includes(k)) continue
+        if (v === undefined || v === null) continue
+        nodeData[k] = v
+      }
       const id = store.addNode('videoGen', getSmartPosition(), nodeData)
       return { success: true, message: `已创建视频生成节点 (${videoModel})`, nodeIds: [id] }
     }
@@ -278,6 +289,12 @@ export async function executeToolCall(
     case 'optimize_prompt':    return handleOptimizePrompt(args)
     case 'detect_scenario':    return handleDetectScenario(args)
     case 'classify_image':     return handleClassifyImage(args)
+    case 'get_model_params':   return handleGetModelParams(args)
+    case 'list_assets':        return handleListAssets(args)
+    case 'create_asset':       return handleCreateAsset(args)
+    case 'update_asset':       return handleUpdateAsset(args)
+    case 'link_asset_to_node': return handleLinkAssetToNode(args)
+    case 'resolve_prompt_refs': return handleResolvePromptRefs(args)
 
     default:
       return { success: false, message: `未知工具: ${name}` }

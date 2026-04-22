@@ -371,10 +371,12 @@ async def seed_database() -> None:
                 session.add(ch)
                 channel_map[ch_data["channel_id"]] = ch
 
-            # 插入模型
+            # 插入模型 (schema_version 由 ORM default=1 填充)
             model_map: dict[str, AiModel] = {}
             for m_data in MODELS_SEED:
                 m = AiModel(**m_data)
+                if getattr(m, "schema_version", None) is None:
+                    m.schema_version = 1
                 session.add(m)
                 model_map[m_data["model_id"]] = m
 

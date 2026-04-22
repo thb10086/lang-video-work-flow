@@ -50,12 +50,28 @@ async def get_model(model_id: str, svc: ModelService = Depends(_get_service)):
 
 @router.get("/{model_id}/schema")
 async def get_model_schema(model_id: str, svc: ModelService = Depends(_get_service)):
-    """获取模型参数 schema（前端动态渲染表单用）"""
+    """获取模型参数 schema（前端动态渲染表单用）- 返回 ParamField[]，保持向后兼容。"""
     model = await svc.get_model(model_id)
     if not model:
         raise HTTPException(status_code=404, detail=f"Model not found: {model_id}")
     schema = await svc.get_param_schema(model_id)
     return SuccessResponse(data=schema)
+
+
+@router.get("/{model_id}/params")
+async def get_model_params(model_id: str, svc: ModelService = Depends(_get_service)):
+    """获取模型参数 schema + 版本 (结构化输出，Agent 工具 get_model_params 使用)。"""
+    model = await svc.get_model(model_id)
+    if not model:
+        raise HTTPException(status_code=404, detail=f"Model not found: {model_id}")
+    schema = await svc.get_param_schema(model_id)
+    return SuccessResponse(
+        data={
+            "model_id": model_id,
+            "schema": schema,
+            "schema_version": getattr(model, "schema_version", 1) or 1,
+        }
+    )
 
 
 @router.post("", response_model=SuccessResponse[AiModelResponse])

@@ -25,6 +25,14 @@ description: 每次开发前必须执行的上下文加载流程
 - 后期技能 (音频/检查/拼接): `.windsurf/skills/post-production.md`
 - 质量与工程技能: `.windsurf/skills/quality-and-craft.md`
 
+3.5 数据库 schema 检查（涉及后端时必跑）
+// turbo
+```
+cd server && alembic current
+```
+如果输出不是 `(head)`，立即执行 `alembic upgrade head`。
+症状：后端 500 `Unknown column 'xxx' in 'field list'` = ORM 新增字段但 DB 未升级。
+
 4. 确认当前任务
 - 找到 `status: pending` 的最高优先级任务
 - 或继续上次 `进行中` 的任务

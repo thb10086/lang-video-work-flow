@@ -20,6 +20,7 @@ class AiModel(Base, IDMixin, TimestampMixin, SoftDeleteMixin):
     capability: Mapped[str] = mapped_column(String(32), nullable=False, comment="text|image|video|audio")
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     param_schema: Mapped[dict] = mapped_column(JSON, nullable=False, comment="ParamField[] 动态参数定义")
+    schema_version: Mapped[int] = mapped_column(Integer, default=1, server_default="1", nullable=False, comment="参数 schema 版本，param_schema 更新时自增")
     is_enabled: Mapped[int] = mapped_column(SmallInteger, default=1, comment="启用/禁用")
     sort_order: Mapped[int] = mapped_column(Integer, default=0, comment="排序权重")
 

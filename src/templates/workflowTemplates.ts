@@ -1,11 +1,17 @@
 /**
  * 工作流模板系统
  * 
- * 内置多种行业模板，用户可一键加载完整工作流到画布
+ * 内置多种行业模板，用户可一键加载完整工作流到画布。
+ * 注意：模板使用 DEFAULT_VIDEO_MODEL/DEFAULT_IMAGE_MODEL 作为默认模型，
+ * 但运行时通过 `instantiateTemplate` 会把每个 schema-aware 节点的字段与
+ * 实际模型的 param_schema 对齐（drop 不支持字段 + 填充 default）。
  */
 
 import type { Node, Edge } from '@xyflow/react'
 import { DEFAULT_IMAGE_MODEL, DEFAULT_LLM_MODEL, DEFAULT_VIDEO_MODEL, DEFAULT_VIDEO_SIZE, DEFAULT_VIDEO_DURATION } from '@/providers/modelDefaults'
+import { sanitizeOnModelSwitch } from '@/providers/paramSanitizer'
+import type { ParamField } from '@/providers/types'
+import type { AiModelResponse } from '@/api/backend'
 
 export interface WorkflowTemplate {
   id: string
@@ -294,3 +300,60 @@ export const BUILTIN_TEMPLATES: WorkflowTemplate[] = [
     ],
   },
 ]
+
+// ============================================================
+// Template Instantiator
+// ============================================================
+
+export interface TemplateModelRegistry {
+  video?: AiModelResponse[]
+  image?: AiModelResponse[]
+  audio?: AiModelResponse[]
+}
+
+const SCHEMA_AWARE_NODE_TYPES: Record<string, keyof TemplateModelRegistry> = {
+  videoGen: 'video',
+  imageGen: 'image',
+  audioNode: 'audio',
+}
+
+/**
+ * Instantiate a template with runtime schema awareness.
+ *
+ * For every schema-aware node (videoGen / imageGen / audioNode):
+ *   1. Look up the model in the supplied registry.
+ *   2. Run sanitizeOnModelSwitch against the model's param_schema.
+ *   3. Return a new node with `data` cleaned of unsupported fields and
+ *      with schema defaults applied for missing ones.
+ *
+ * Non-schema-aware nodes (characterGrid / textNode / storyboard / etc.)
+ * pass through unchanged.
+ *
+ * If the registry is empty for some capability, the original data is kept
+ * (templates already default to Seedance-flavored fields).
+ */
+export function instantiateTemplate(
+  template: WorkflowTemplate,
+  models: TemplateModelRegistry = {},
+): { nodes: Node[]; edges: Edge[] } {
+  const nodes = template.nodes.map(node => {
+    const capability = SCHEMA_AWARE_NODE_TYPES[node.type || '']
+    if (!capability) return node
+
+    const bucket = models[capability] || []
+    if (bucket.length === 0) return node
+
+    const currentModelId = String((node.data as Record<string, unknown>)?.model || '')
+    const model = bucket.find(m => m.model_id === currentModelId)
+    if (!model) return node
+
+    const schema = (Array.isArray(model.param_schema) ? model.param_schema : []) as ParamField[]
+    const { clean } = sanitizeOnModelSwitch(
+      (node.data as Record<string, unknown>) || {},
+      schema,
+    )
+    return { ...node, data: clean }
+  })
+
+  return { nodes, edges: template.edges }
+}

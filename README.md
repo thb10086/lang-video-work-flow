@@ -48,7 +48,19 @@
 - **工作流导入/导出**：JSON 格式保存和加载
 - **COS 图片上传**：腾讯云 COS 集成，base64 自动上传为公网 URL
 
-### 🔌 可扩展模型体系
+### � 素材库 & 跨模型参考图适配（v0.5）
+- **三类素材**：角色 / 场景 / 风格 — 每条带外貌描述 + 参考图 + 变体
+- **@ 引用语法**：prompt 里写 `@char_sarah walks at dusk`，resolver 自动展开外貌 + 收集参考图
+- **变体支持**：`@char_sarah:smiling` 合并基础外貌 + 变体 delta
+- **跨模型参考图适配器**：同一 prompt 在不同视频模型上自动路由到正确字段
+  - Seedance → `images` 原生多参考图
+  - VEO 3.1 → `image_mode=reference`（≤2 张），有首帧自动降级为 `first_frame`
+  - Sora-2 VIP → `characterUrl + characterTimestamps` 走 Character API
+  - Kling v3 → 仅保留首/尾帧，多余参考图被 drop（带 notes）
+- **LibTV 风格面板**：`Ctrl+Shift+A` 打开右侧抽屉，卡片可拖拽到画布自动创建对应节点
+- **Agent 工具**：`list_assets` / `create_asset` / `update_asset` / `link_asset_to_node` / `resolve_prompt_refs`
+
+### � 可扩展模型体系
 - **后端管理**：新增模型只需在后端 `ai_models` 表插入记录（含 param_schema JSON），前端自动生效
 - **已接入图片**：Gemini 原生 API（gemini-3.1-flash-image-preview / gemini-3-pro-image-preview）
 - **已接入视频**：Seedance 2.0 / 2.0-Fast、VEO 3.1 系列、Sora-2 VIP、Kling v3
@@ -134,8 +146,12 @@ VITE_BACKEND_URL=ws://localhost:8000
 | `Ctrl + D` | 复制选中节点（Duplicate） |
 | `Ctrl + A` | 全选所有节点 |
 | `Delete` / `Backspace` | 删除选中节点 |
+| `Ctrl + Shift + A` | 打开/关闭素材库面板 |
+| `Ctrl + K` | 打开快速节点搜索 |
+| `Ctrl + J` | 打开/关闭 Agent 抽屉 |
 
-> 在输入框/文本框/下拉框中输入时，快捷键自动禁用，不会干扰编辑。
+> 在输入框/文本框/下拉框中输入时，上面大部分快捷键自动禁用，不会干扰编辑。
+> `@` 符号仅在 PromptInput 里触发素材自动补全；其它输入框不受影响。
 
 ---
 
@@ -184,15 +200,21 @@ VITE_BACKEND_URL=ws://localhost:8000
 前端 UI 组件
      ↓  useBackendModels(capability)
 后端 GET /api/models?capability=video
-     ↓  Redis 缓存 (TTL 1h)
+     ↓  Redis 缓存 (TTL 1h, key=prism:models:{capability})
 后端 ModelService → ai_models 表 (MySQL)
-     ↓  返回 model_id + name + param_schema
-前端动态渲染参数面板 (下拉/滑块/开关)
+     ↓  返回 model_id + name + param_schema + schema_version
+前端动态渲染参数面板 (下拉/滑块/开关) + Agent 工具 schema
 ```
 
-新增模型只需 2 步：
-1. 后端 `ai_models` 表插入记录（含 `param_schema` JSON 数组）
-2. `toolDefinitions.ts` 的 `create_video_node.model.enum` 加入新模型名
+**多模型参数适配（v0.2+）**：
+- **单一 schema 源**：`ai_models.param_schema` 是前端 UI + Agent 工具 + 后端验证器共用的 ParamField[]
+- **版本控制**：`schema_version` 列在 `param_schema` 更新时自增，客户端可基于版本决定缓存失效
+- **运行时 Agent schema**：`src/providers/toolSchemaGenerator.ts` 在每次 Agent 调用前从后端模型列表构造 `create_video_node` / `create_image_node` / `create_audio_node` 的 union 属性 + `model` 枚举，非通用字段在描述里标注 `[仅适用于 <ids>]`
+- **Sanitizer 双保险**：`src/providers/paramSanitizer.ts` 在前端切换模型时清理陈旧字段 + 注入新默认值；`server/app/services/param_validator.py` 在后端 adapter 层校验，非法参数返回 HTTP 422 `{ error: "invalid_params", violations: [...] }`
+- **Agent 工具**：`get_model_params(model_id)` 让 LLM 在需要精确参数时按需查询
+
+新增模型只需 1 步：
+1. 后端 `ai_models` 表插入记录（含 `param_schema` JSON 数组），前端 UI + Agent 工具自动感知
 
 ### 核心服务层
 

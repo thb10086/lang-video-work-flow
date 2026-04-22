@@ -13,6 +13,33 @@
 import { useFlowStore } from '@/store/flowStore'
 import type { ToolCallResult } from './toolHelpers'
 
+// 外貌描述里的"低信息量"通用词 — 挑 keywords 时需跳过，避免把 "young/with/and"
+// 这种无区分度词当作角色指纹。优先保留颜色/部位/服装等具视觉锚定力的词。
+const APPEARANCE_STOPWORDS = new Set([
+  'young', 'old', 'tall', 'short', 'thin', 'slim', 'tiny', 'huge', 'large', 'small',
+  'with', 'and', 'the', 'her', 'his', 'they', 'them', 'him', 'she', 'has', 'have',
+  'having', 'wearing', 'dressed', 'feature', 'features', 'distinctive', 'recognizable',
+  'consistent', 'clothing', 'appearance', 'character', 'posture', 'look', 'looking',
+  'style', 'style.', 'person', 'people', 'human',
+])
+
+/** 从外貌描述中抽取最具视觉锚定力的 keywords — 保留颜色/服装/发型等关键词 */
+function pickAnchorKeywords(appearance: string, limit = 4): string[] {
+  const words = appearance
+    .toLowerCase()
+    .replace(/[,.;()[\]{}"']/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length > 3 && !APPEARANCE_STOPWORDS.has(w))
+  // 去重保持顺序
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const w of words) {
+    if (!seen.has(w)) { seen.add(w); out.push(w) }
+    if (out.length >= limit) break
+  }
+  return out
+}
+
 export function handleVerifyTask(args: Record<string, unknown>): ToolCallResult {
   const store = useFlowStore.getState()
   const nodes = store.nodes
@@ -88,18 +115,28 @@ export function handleVerifyTask(args: Record<string, unknown>): ToolCallResult 
   } else {
     let charMissing = 0
     const charDetails: string[] = []
+    // 预计算每个角色的 anchor keywords，避免重复拆词
+    const charAnchors: Record<string, string[]> = {}
+    for (const name of charNames) {
+      charAnchors[name] = pickAnchorKeywords(charAppearances[name])
+    }
     for (const n of promptNodes) {
       const prompt = String(n.data?.prompt || '').toLowerCase()
       if (!prompt) continue
+      // Agent 也可能用 @assetId 引用 —— resolver 会在执行时展开外貌文本。
+      // 检查 prompt 里是否有任意 @token，如有则视为"延迟展开"，跳过关键词检查。
+      const hasAtRef = /@[a-zA-Z]+_[A-Za-z0-9]+/.test(prompt)
+      if (hasAtRef) continue
       for (const name of charNames) {
-        if (prompt.includes(name.toLowerCase())) {
-          const desc = charAppearances[name].toLowerCase()
-          const keyWords = desc.split(/[\s,]+/).filter(w => w.length > 3).slice(0, 3)
-          const missing = keyWords.filter(kw => !prompt.includes(kw))
-          if (missing.length > 0) {
-            charMissing++
-            if (verbose) charDetails.push(`  「${String(n.data?.label)}」含角色「${name}」但缺外貌词: ${missing.join(', ')}`)
-          }
+        if (!prompt.includes(name.toLowerCase())) continue
+        const anchors = charAnchors[name]
+        if (anchors.length === 0) continue
+        // 只要命中 ≥1 个视觉锚定词就算通过 — 容忍同义词/表达差异，
+        // 避免过度机械匹配"young/with"等通用词。
+        const hit = anchors.some(kw => prompt.includes(kw))
+        if (!hit) {
+          charMissing++
+          if (verbose) charDetails.push(`  「${String(n.data?.label)}」含角色「${name}」但未出现任一外貌锚点词: ${anchors.join(' / ')}`)
         }
       }
     }

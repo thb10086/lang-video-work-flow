@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.channel_service import ChannelService
 from app.services.cos_service import cos_service
 from app.services.model_service import ModelService
+from app.services.param_validator import ParamValidationError, validate_params
 
 logger = logging.getLogger("prism.services.image")
 
@@ -47,6 +48,12 @@ class ImageService:
         if not model:
             raise ValueError(f"Model not found: {model_id}")
 
+        # Validate params against model's schema
+        schema = model.param_schema if isinstance(model.param_schema, list) else []
+        clean_params, violations = validate_params(schema, params)
+        if violations:
+            raise ParamValidationError(model_id, violations)
+
         # 获取可用渠道
         channels = await self.channel_svc.get_channels_for_model(model.id)
         if not channels:
@@ -56,7 +63,7 @@ class ImageService:
         gen_params = {
             "prompt": prompt,
             "reference_images": reference_images or [],
-            **(params or {}),
+            **clean_params,
         }
 
         # 按优先级尝试各渠道

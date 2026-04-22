@@ -1,11 +1,11 @@
 import { create } from 'zustand'
 import { generateId } from '@/lib/utils'
 import { useSettingsStore } from '@/store/settingsStore'
-import { AGENT_TOOLS, executeToolCall } from '@/providers/agentTools'
+import { AGENT_TOOLS, executeToolCall, getAgentTools } from '@/providers/agentTools'
 import { useAgentMemoryStore } from '@/store/agentMemoryStore'
 import { buildAgentSystemPrompt, compactConversationHistory, smartCompress, estimateTotalTokens } from '@/store/chatPromptBuilder'
 import type { LLMMessage } from '@/store/chatPromptBuilder'
-import { backendApi } from '@/api/backend'
+import { backendApi, type AiModelResponse } from '@/api/backend'
 import { getModelMaxTokens, TASK_TOKEN_BUDGETS } from '@/providers/modelDefaults'
 
 export interface ChatMessage {
@@ -148,6 +148,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       const systemPrompt = buildAgentSystemPrompt(activeRole)
 
+      // Fetch model registry once per processing session so we can build
+      // model-aware tool schemas. Fallback to static AGENT_TOOLS on failure.
+      let agentTools: Array<Record<string, unknown>> = AGENT_TOOLS as unknown as Array<Record<string, unknown>>
+      try {
+        const [videoRes, imageRes, audioRes] = await Promise.all([
+          backendApi.listModels('video').catch(() => ({ items: [] as AiModelResponse[], total: 0 })),
+          backendApi.listModels('image').catch(() => ({ items: [] as AiModelResponse[], total: 0 })),
+          backendApi.listModels('audio').catch(() => ({ items: [] as AiModelResponse[], total: 0 })),
+        ])
+        agentTools = getAgentTools(
+          videoRes.items,
+          imageRes.items,
+          audioRes.items,
+        ) as unknown as Array<Record<string, unknown>>
+      } catch (toolErr) {
+        console.warn('[chatStore] tool schema build failed, falling back to static:', toolErr)
+      }
+
       const chatHistory = get().messages.filter(m => m.id !== assistantMsgId)
       const compactedHistory = compactConversationHistory(chatHistory)
       let llmMessages: LLMMessage[] = compactedHistory
@@ -236,7 +254,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             messages: apiMessages,
             temperature: settings.agentTemperature ?? 0.3,
             max_tokens: Math.min(settings.agentMaxTokens || TASK_TOKEN_BUDGETS.AGENT_CHAT, getModelMaxTokens(modelId)),
-            tools: AGENT_TOOLS as unknown as Array<Record<string, unknown>>,
+            tools: agentTools,
             tool_choice: 'auto',
           })
           consecutiveLlmFailures = 0

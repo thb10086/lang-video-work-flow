@@ -62,6 +62,7 @@ class AiModelResponse(BaseModel):
     capability: str
     description: str | None = None
     param_schema: list[ParamField]
+    schema_version: int = 1
     is_enabled: int
     sort_order: int
     created_at: datetime
