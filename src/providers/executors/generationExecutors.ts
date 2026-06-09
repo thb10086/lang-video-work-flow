@@ -17,6 +17,7 @@ import { renderTemplate } from '@/prompts/promptEngine'
 import { backendApi, type AiModelResponse } from '@/api/backend'
 import type { ParamField } from '@/providers/types'
 import { resolvePromptRefs } from '@/providers/assetReferenceResolver'
+import { resolveCharacterNames } from '@/providers/characterNameResolver'
 import { injectVideoReferences } from '@/providers/modelReferenceAdapter'
 import { sanitizeForExecute } from '@/providers/paramSanitizer'
 import type { ExecutionResult } from '../nodeExecutor'
@@ -72,13 +73,42 @@ function buildCharacterAnchorPrefix(prompt: string): string {
 export async function executeCharacterGrid(nodeId: string): Promise<ExecutionResult> {
   const store = useFlowStore.getState()
   const node = store.nodes.find(n => n.id === nodeId)
-  if (!node || node.type !== 'characterGrid') {
-    return { success: false, message: `未找到角色九宫图节点 (${nodeId})` }
+  // Accept both legacy `characterGrid` and unified `characterAsset` (mode=design).
+  // The dispatcher in nodeExecutor.ts routes by characterKind() so either type
+  // can land here.
+  const isLegacyGrid = node?.type === 'characterGrid'
+  const isUnifiedAsset = node?.type === 'characterAsset'
+  if (!node || (!isLegacyGrid && !isUnifiedAsset)) {
+    return { success: false, message: `未找到角色节点 (${nodeId})` }
   }
 
+  // For characterAsset, the user-friendly name lives in `data.name`; for older
+  // characterGrid nodes it lives in `data.name` too — so single source of truth.
   const name = String(node.data.name || '新角色')
-  const desc = String(node.data.description || 'A character')
+  // characterAsset uses `appearance` for the long descriptor; characterGrid
+  // historically used `description`. Read both for backward compatibility.
+  const desc = String(node.data.description || node.data.appearance || 'A character')
   const artStyle = String(node.data.style || 'anime')
+
+  // ── Short-circuit: if the user uploaded a referenceImage via
+  //    create_from_images, treat that original image as the authoritative
+  //    output (do NOT let gpt-image-2 redraw a brand-anchored face).
+  //    Still register the appearance keywords so downstream imageGen prompts
+  //    pick up the character anchor.
+  const uploadedRef = String(node.data.referenceImage || '')
+  if (uploadedRef && (uploadedRef.startsWith('data:') || uploadedRef.startsWith('http'))) {
+    store.updateNodeData(nodeId, {
+      status: 'done',
+      outputImage: uploadedRef,
+      ...(uploadedRef.startsWith('http') ? { outputImageUrl: uploadedRef } : {}),
+    })
+    if (desc && desc !== 'A character') store.setCharacterAppearance(name, desc)
+    return {
+      success: true,
+      message: `角色「${name}」直接采用上传的参考图（未走 AI 重绘）`,
+      output: uploadedRef,
+    }
+  }
 
   const prompt = renderTemplate(characterSheetTemplate.template, {
     character_name: name,
@@ -120,14 +150,34 @@ export async function executeCharacterGrid(nodeId: string): Promise<ExecutionRes
 export async function executeSceneGrid(nodeId: string): Promise<ExecutionResult> {
   const store = useFlowStore.getState()
   const node = store.nodes.find(n => n.id === nodeId)
+  // Only sceneGrid for now — unified sceneAsset is not yet introduced, but
+  // keep the check explicit so a future migration trips a clear error.
   if (!node || node.type !== 'sceneGrid') {
-    return { success: false, message: `未找到场景九宫图节点 (${nodeId})` }
+    return { success: false, message: `未找到场景节点 (${nodeId})` }
   }
 
   const name = String(node.data.name || '新场景')
   const desc = String(node.data.description || 'A scene')
   const style = String(node.data.style || 'cinematic')
   const mood = String(node.data.mood || 'dramatic')
+
+  // ── Short-circuit: if the user uploaded a referenceImage (product shot,
+  //    location photo, brand visual), use it AS-IS instead of letting
+  //    gpt-image-2 redraw a fictional version. This is the single biggest
+  //    fix for product-ad workflows where brand logos must stay readable.
+  const uploadedRef = String(node.data.referenceImage || '')
+  if (uploadedRef && (uploadedRef.startsWith('data:') || uploadedRef.startsWith('http'))) {
+    store.updateNodeData(nodeId, {
+      status: 'done',
+      outputImage: uploadedRef,
+      ...(uploadedRef.startsWith('http') ? { outputImageUrl: uploadedRef } : {}),
+    })
+    return {
+      success: true,
+      message: `场景「${name}」直接采用上传的参考图（未走 AI 重绘，品牌锁定）`,
+      output: uploadedRef,
+    }
+  }
 
   const prompt = renderTemplate(sceneSheetTemplate.template, {
     scene_name: name,
@@ -178,16 +228,21 @@ export async function executeImageGen(nodeId: string): Promise<ExecutionResult> 
     return { success: false, message: `图片生成节点「${node.data.label}」缺少 prompt` }
   }
 
-  // 1) Resolve @assetId tokens in the prompt (expand + collect refs)
+  // 1a) Resolve @asset_id tokens (ASCII) via assetStore
   const assetStore = useAssetStore.getState()
   const extraAssetRefs = Array.isArray(node.data.assetRefs) ? (node.data.assetRefs as string[]) : []
   const resolved = resolvePromptRefs(basePrompt, assetStore, extraAssetRefs)
-  if (resolved.unresolved.length > 0) {
-    console.warn('[executeImageGen] unresolved asset tokens:', resolved.unresolved)
+
+  // 1b) Resolve @角色名 tokens against CharacterManager nodes
+  const nameResolved = resolveCharacterNames(resolved.expandedPrompt, store.nodes)
+
+  const allUnresolved = [...resolved.unresolved, ...nameResolved.unresolved]
+  if (allUnresolved.length > 0) {
+    console.warn('[executeImageGen] unresolved tokens:', allUnresolved)
   }
 
   // 2) 自动注入角色外貌锚定词
-  const anchoredPrompt = buildCharacterAnchorPrefix(resolved.expandedPrompt)
+  const anchoredPrompt = buildCharacterAnchorPrefix(nameResolved.expandedPrompt)
 
   // 3) 附加 styleLock 注入的风格描述
   const stylePrompt = node.data.stylePrompt as string | null
@@ -196,7 +251,7 @@ export async function executeImageGen(nodeId: string): Promise<ExecutionResult> 
   const currentModel = String(node.data.model || DEFAULT_IMAGE_MODEL)
   store.updateNodeData(nodeId, { status: 'generating', errorMsg: null, outputImage: null })
 
-  // 4) referenceImages 由上游通过 propagateNodeOutput 写入（支持多角色）+ 合并 @资产引用
+  // 4) referenceImages 由上游通过 propagateNodeOutput 写入（支持多角色）+ 合并 @资产引用 + @角色名
   const refImages: string[] = []
   const allRefs = node.data.referenceImages as string[] | null
   if (allRefs?.length) {
@@ -205,10 +260,16 @@ export async function executeImageGen(nodeId: string): Promise<ExecutionResult> 
     const singleRef = node.data.referenceImage as string | null
     if (singleRef) refImages.push(singleRef)
   }
-  // Union with resolved asset references (de-duplicated)
+  // Union with resolved references (de-duplicated) from both resolvers
   for (const img of resolved.referenceImages) {
     if (img && !refImages.includes(img)) refImages.push(img)
   }
+  for (const img of nameResolved.referenceImages) {
+    if (img && !refImages.includes(img)) refImages.push(img)
+  }
+  // CharacterExtract → ImageGen direct character-in wiring (populated by propagateNodeOutput)
+  const charImg = (node.data.characterImage || node.data.characterUrl) as string | null
+  if (charImg && !refImages.includes(charImg)) refImages.push(charImg)
 
   try {
     let dataUrl: string | null = null
@@ -258,13 +319,30 @@ export async function executeVideoGen(nodeId: string): Promise<ExecutionResult> 
   store.updateNodeData(nodeId, { status: 'generating', errorMsg: null, outputVideo: null, progress: 0 })
 
   try {
-    // 1) Resolve @assetId tokens (prompt expansion + asset ref aggregation)
+    // 1a) Resolve @asset_id tokens (ASCII) via assetStore
     const assetStore = useAssetStore.getState()
     const extraAssetRefs = Array.isArray(node.data.assetRefs) ? (node.data.assetRefs as string[]) : []
     const resolved = resolvePromptRefs(rawPrompt, assetStore, extraAssetRefs)
 
+    // 1b) Resolve @角色名 tokens against CharacterManager nodes
+    const nameResolved = resolveCharacterNames(resolved.expandedPrompt, store.nodes)
+
+    // Merge references from both resolvers + character-in edge value
+    const mergedReferenceImages = Array.from(
+      new Set([...resolved.referenceImages, ...nameResolved.referenceImages]),
+    )
+    const mergedCharacterUrls = Array.from(
+      new Set([...resolved.characterUrls, ...nameResolved.characterUrls]),
+    )
+    const charImg = (node.data.characterImage || node.data.characterUrl) as string | null
+    if (charImg) {
+      if (!mergedReferenceImages.includes(charImg)) mergedReferenceImages.push(charImg)
+      if (!mergedCharacterUrls.includes(charImg)) mergedCharacterUrls.push(charImg)
+    }
+    const mergedUnresolved = [...resolved.unresolved, ...nameResolved.unresolved]
+
     // 2) Legacy anchor prefix still applies to the expanded prompt
-    const prompt = buildCharacterAnchorPrefix(resolved.expandedPrompt)
+    const prompt = buildCharacterAnchorPrefix(nameResolved.expandedPrompt)
 
     // 3) Existing first/last frames (prefer COS URLs over base64)
     const existingImages: string[] = []
@@ -279,8 +357,8 @@ export async function executeVideoGen(nodeId: string): Promise<ExecutionResult> 
 
     // 5) Model-specific injection
     const adaptation = injectVideoReferences(currentModel, schema, {
-      referenceImages: resolved.referenceImages,
-      characterUrls: resolved.characterUrls,
+      referenceImages: mergedReferenceImages,
+      characterUrls: mergedCharacterUrls,
       timestamps: resolved.timestamps,
       existingImages,
     })
@@ -288,8 +366,8 @@ export async function executeVideoGen(nodeId: string): Promise<ExecutionResult> 
     if (adaptation.notes.length > 0) {
       console.debug('[executeVideoGen] adapter notes:', adaptation.notes)
     }
-    if (resolved.unresolved.length > 0) {
-      console.warn('[executeVideoGen] unresolved asset tokens:', resolved.unresolved)
+    if (mergedUnresolved.length > 0) {
+      console.warn('[executeVideoGen] unresolved tokens:', mergedUnresolved)
     }
 
     // 6) Build params → sanitize → re-inject adapter params not in schema
@@ -307,33 +385,108 @@ export async function executeVideoGen(nodeId: string): Promise<ExecutionResult> 
     })
     store.updateNodeData(nodeId, { taskId: res.task_id })
 
-    // Start polling
-    const pollInterval = setInterval(async () => {
-      try {
-        const status = await backendApi.queryTask(res.task_id)
-        store.updateNodeData(nodeId, {
-          status: status.status === 'completed' ? 'done'
-            : status.status === 'failed' ? 'error'
-            : 'generating',
-          progress: status.progress || 0,
-          outputVideo: status.output_url || null,
-          errorMsg: status.error || null,
-        })
-        if (status.status === 'completed' || status.status === 'failed') {
-          clearInterval(pollInterval)
-        }
-      } catch (pollErr) {
-        console.warn('[executeVideoGen] Poll error:', pollErr)
-      }
-    }, 5000)
-
-    return {
-      success: true,
-      message: `视频「${node.data.label}」已提交生成 (任务ID: ${res.task_id.slice(0, 8)}...)`,
-    }
+    // Await polling until completion. This is critical: parallel_execute
+    // must observe ACTUAL completion (success/failure/timeout) so the Agent
+    // does not advance to videoStitch prematurely and re-submit the same
+    // video tasks (each call is a paid API request).
+    const pollResult = await pollVideoTaskUntilDone(res.task_id, nodeId, node.data.label as string)
+    return pollResult
   } catch (err) {
     const msg = err instanceof Error ? err.message : '生成失败'
     store.updateNodeData(nodeId, { status: 'error', errorMsg: msg })
     return { success: false, message: `视频「${node.data.label}」提交失败：${msg}` }
   }
+}
+
+// ── Video polling config (mutable for tests; auto-shrunk in test mode) ──
+const _isTestMode = (() => {
+  try {
+    return typeof process !== 'undefined'
+      && (process.env?.NODE_ENV === 'test' || process.env?.VITEST === 'true')
+  } catch {
+    return false
+  }
+})()
+
+/**
+ * Mutable polling configuration for video tasks.
+ *
+ * Production: 5s interval × 180 attempts = **15 minute** ceiling. Sora / VEO
+ * commonly take 5-10 min for 12s clips; the previous 2-minute window made the
+ * UI freeze on "首帧生成中…50%" and forced the Agent to time-budget out.
+ *
+ * Tests: 5ms interval × 5 attempts = ~25ms ceiling so the suite doesn't hang.
+ *
+ * Tests that need other values may mutate this object directly.
+ */
+export const videoPollConfig = {
+  intervalMs: _isTestMode ? 5 : 5000,
+  maxAttempts: _isTestMode ? 5 : 180,
+}
+
+/**
+ * Poll a backend video task until it completes, fails, or exceeds the
+ * configured max attempts. Updates node status on every poll so the UI
+ * reflects backend state in real time. Returns a final ExecutionResult
+ * that callers (parallel_execute, etc.) can use to advance only after
+ * the video URL is actually available.
+ */
+async function pollVideoTaskUntilDone(
+  taskId: string,
+  nodeId: string,
+  label: string,
+): Promise<ExecutionResult> {
+  const store = useFlowStore.getState()
+
+  for (let attempts = 0; attempts < videoPollConfig.maxAttempts; attempts++) {
+    // Query first, then sleep — lets fast backends short-circuit without
+    // an initial 5s wait, which also keeps the test suite responsive.
+    if (attempts > 0) {
+      await new Promise(resolve => setTimeout(resolve, videoPollConfig.intervalMs))
+    }
+    try {
+      const status = await backendApi.queryTask(taskId)
+      const isCompleted = status.status === 'completed'
+      const isFailed = status.status === 'failed'
+      const hasUrl = !!status.output_url
+
+      store.updateNodeData(nodeId, {
+        status: isCompleted && hasUrl ? 'done'
+          : isFailed ? 'error'
+          : 'generating',
+        progress: status.progress || 0,
+        outputVideo: status.output_url || null,
+        errorMsg: status.error || null,
+      })
+
+      if (isCompleted && hasUrl) {
+        return {
+          success: true,
+          message: `视频「${label}」生成完成`,
+          output: status.output_url,
+        }
+      }
+      if (isFailed) {
+        return {
+          success: false,
+          message: `视频「${label}」生成失败：${status.error || '未知错误'}`,
+        }
+      }
+      // Else: still processing — keep polling.
+    } catch (pollErr) {
+      // Network blips during polling shouldn't kill the whole task; log and
+      // keep trying until maxAttempts. Only the final timeout is fatal.
+      console.warn('[pollVideoTaskUntilDone] poll error:', pollErr)
+    }
+  }
+
+  // Reached maxAttempts without completion — transition to error so the UI
+  // does not remain stuck on "generating" (which was the previous bug).
+  const ceilingMinutes = Math.round((videoPollConfig.intervalMs * videoPollConfig.maxAttempts) / 60000)
+  const timeoutMsg = `视频生成轮询超时（${ceilingMinutes}min 未完成），请检查后端任务 ${taskId}`
+  store.updateNodeData(nodeId, {
+    status: 'error',
+    errorMsg: timeoutMsg,
+  })
+  return { success: false, message: `视频「${label}」${timeoutMsg}` }
 }

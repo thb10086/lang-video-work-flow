@@ -21,6 +21,7 @@ import { executeToolCall } from '@/providers/agentTools'
 import { useFlowStore } from '@/store/flowStore'
 import { useAssetStore } from '@/store/assetStore'
 import { NODE_PORT_REGISTRY } from '@/types/portRegistry'
+import { isLegacyCharacterNode, nodesOfType } from './_helpers/characterAssetTestHelpers'
 
 function reset() {
   useFlowStore.setState({ nodes: [], edges: [], selectedNodeId: null, characterAppearances: {} })
@@ -65,18 +66,23 @@ async function runScenario(overrides: Record<string, unknown> = {}) {
 describe('[A] 节点结构完整性', () => {
   beforeEach(reset)
 
-  it('short_drama: 生成 script + storyboard + style + 2 chars + 1 scene + 3 kf + 3 video + stitch = 13 节点', async () => {
+  it('short_drama: 生成 script + storyboard + style + 2 chars + manager + 1 scene + 3 kf + 3 video + stitch = 14 节点', async () => {
     const { nodes } = await runScenario()
-    const byType = (t: string) => nodes.filter(n => n.type === t).length
-    expect(byType('textNode')).toBe(1)         // 剧本
+    // byType is migration-aware: legacy character types resolve via
+    // `nodesOfType` so the assertions still describe the *role* of the
+    // node regardless of whether the canvas uses legacy 3-type schema
+    // or the unified `characterAsset` type with `data.mode`.
+    const byType = (t: string) => nodesOfType(nodes, t).length
+    expect(byType('textNode')).toBe(1)           // 剧本
     expect(byType('storyboard')).toBe(1)
     expect(byType('styleLock')).toBe(1)
     expect(byType('characterGrid')).toBe(2)
+    expect(byType('characterManager')).toBe(1)   // LibTV 角色库 registry (added in node-functional-parity-cleanup)
     expect(byType('sceneGrid')).toBe(1)
     expect(byType('imageGen')).toBe(3)
     expect(byType('videoGen')).toBe(3)
     expect(byType('videoStitch')).toBe(1)
-    expect(nodes).toHaveLength(13)
+    expect(nodes).toHaveLength(14)
   })
 })
 
@@ -117,12 +123,12 @@ describe('[C] 角色一致性：每个 imageGen 都被所有 characterGrid 连�
   it('每个 imageGen 节点 ref-in 上有 N 条来自 characterGrid 的边（N = 角色数）', async () => {
     const { nodes, edges } = await runScenario()
     const imgNodes = nodes.filter(n => n.type === 'imageGen')
-    const charNodes = nodes.filter(n => n.type === 'characterGrid')
+    const charNodes = nodes.filter(n => isLegacyCharacterNode(n, 'characterGrid'))
     for (const img of imgNodes) {
       const charRefEdges = edges.filter(e =>
         e.target === img.id &&
         e.targetHandle === 'ref-in' &&
-        nodes.find(n => n.id === e.source)?.type === 'characterGrid'
+        isLegacyCharacterNode(nodes.find(n => n.id === e.source), 'characterGrid')
       )
       expect(charRefEdges.length).toBe(charNodes.length)
     }
@@ -210,7 +216,7 @@ describe('[F] 资产库整合：generate_workflow 与 Asset Library 的关系', 
   it('characterGrid / sceneGrid 节点 data.assetId 应指向 assetStore 中的条目', async () => {
     const { nodes } = await runScenario()
     const store = useAssetStore.getState()
-    for (const n of nodes.filter(x => x.type === 'characterGrid' || x.type === 'sceneGrid')) {
+    for (const n of nodes.filter(x => isLegacyCharacterNode(x, 'characterGrid') || x.type === 'sceneGrid')) {
       const assetId = n.data?.assetId as string | undefined
       expect(assetId, `${n.type}#${n.id} missing assetId`).toBeTruthy()
       expect(store.get(assetId!), `assetStore.get(${assetId}) should resolve`).toBeTruthy()

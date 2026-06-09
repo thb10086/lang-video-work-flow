@@ -20,13 +20,14 @@ import CanvasToolbar from '@/components/canvas/CanvasToolbar'
 import QuickNodePanel from '@/components/canvas/QuickNodePanel'
 import CanvasContextMenu from '@/components/canvas/CanvasContextMenu'
 import CharacterGridNode from '@/components/nodes/CharacterGridNode'
+import CharacterAssetNode from '@/components/nodes/CharacterAssetNode'
 import SceneGridNode from '@/components/nodes/SceneGridNode'
+import KeyframeGridNode from '@/components/nodes/KeyframeGridNode'
 import ImageGenNode from '@/components/nodes/ImageGenNode'
 import VideoGenNode from '@/components/nodes/VideoGenNode'
 import TextNode from '@/components/nodes/TextNode'
 import AudioNode from '@/components/nodes/AudioNode'
 import LLMChatNode from '@/components/nodes/LLMChatNode'
-import ImageCropNode from '@/components/nodes/ImageCropNode'
 import CharacterExtractNode from '@/components/nodes/CharacterExtractNode'
 import StoryboardNode from '@/components/nodes/StoryboardNode'
 import CharacterManagerNode from '@/components/nodes/CharacterManagerNode'
@@ -34,16 +35,22 @@ import StyleLockNode from '@/components/nodes/StyleLockNode'
 import ContinuityCheckNode from '@/components/nodes/ContinuityCheckNode'
 import VideoStitchNode from '@/components/nodes/VideoStitchNode'
 import ImageEditNode from '@/components/nodes/ImageEditNode'
+import TimelineNode from '@/components/nodes/TimelineNode'
 
 const nodeTypes = {
+  // characterAsset (task 2.4.3) — unified character node. Legacy
+  // (characterGrid / characterExtract / characterManager) registrations
+  // remain alongside so any persisted canvas that hasn't run the
+  // migration in `workflowMigrations.ts` still renders correctly.
+  characterAsset: CharacterAssetNode,
   characterGrid: CharacterGridNode,
   sceneGrid: SceneGridNode,
+  keyframeGrid: KeyframeGridNode,
   imageGen: ImageGenNode,
   videoGen: VideoGenNode,
   textNode: TextNode,
   audioNode: AudioNode,
   llmChat: LLMChatNode,
-  imageCrop: ImageCropNode,
   characterExtract: CharacterExtractNode,
   storyboard: StoryboardNode,
   characterManager: CharacterManagerNode,
@@ -51,6 +58,7 @@ const nodeTypes = {
   continuityCheck: ContinuityCheckNode,
   videoStitch: VideoStitchNode,
   imageEdit: ImageEditNode,
+  timeline: TimelineNode,
 }
 
 const BG_VARIANT_MAP: Record<string, BackgroundVariant> = {
@@ -122,6 +130,31 @@ function WorkflowCanvas() {
     deleteSelected,
     selectAll,
   } = useFlowStore()
+
+  const highlightedNodeIds = useFlowStore((s) => s.highlightedNodeIds)
+
+  // Decorate node className for canvas ↔ chat highlight (D-9). The css class
+  // `node-highlighted` provides the pulsing ring. We append rather than
+  // overwrite so node-type-specific class hooks survive.
+  const decoratedNodes = useMemo(
+    () =>
+      highlightedNodeIds.size === 0
+        ? nodes
+        : nodes.map((n) =>
+            highlightedNodeIds.has(n.id)
+              ? {
+                  ...n,
+                  className: [
+                    typeof n.className === 'string' ? n.className : '',
+                    'node-highlighted',
+                  ]
+                    .filter(Boolean)
+                    .join(' '),
+                }
+              : n,
+          ),
+    [nodes, highlightedNodeIds],
+  )
 
   const {
     canvasBackground,
@@ -290,7 +323,7 @@ function WorkflowCanvas() {
     <div className="flex-1 h-full relative">
       <CanvasToolbar />
       <ReactFlow
-        nodes={nodes}
+        nodes={decoratedNodes}
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
@@ -299,7 +332,17 @@ function WorkflowCanvas() {
         onInit={onInit}
         onDrop={onDrop}
         onDragOver={onDragOver}
-        onNodeClick={onNodeClick}
+        onNodeClick={(event, node) => {
+          if (event.ctrlKey || event.metaKey) {
+            // Ctrl+Click → broadcast intent so AgentChat can scroll to the
+            // earliest message that referenced this node (D-9 anchor).
+            window.dispatchEvent(
+              new CustomEvent('agent:anchor-to-node', { detail: { nodeId: node.id } }),
+            )
+            return
+          }
+          onNodeClick(event, node)
+        }}
         onPaneClick={onPaneClick}
         onConnectEnd={onConnectEnd}
         nodeTypes={nodeTypes}
@@ -325,6 +368,15 @@ function WorkflowCanvas() {
         <MiniMap
           className="!bg-card !border-border"
           nodeColor={(node) => {
+            // characterAsset (unified) — pick mode-specific color so the
+            // minimap stays informative after migration. Falls through
+            // to legacy palette for any non-character node.
+            if (node.type === 'characterAsset') {
+              const mode = (node.data as { mode?: unknown } | undefined)?.mode
+              if (mode === 'extract') return '#06b6d4'
+              if (mode === 'registry') return '#6366f1'
+              return '#a855f7' // design (default / unknown)
+            }
             switch (node.type) {
               case 'characterGrid': return '#a855f7'
               case 'sceneGrid': return '#10b981'
@@ -333,7 +385,6 @@ function WorkflowCanvas() {
               case 'textNode': return '#f59e0b'
               case 'audioNode': return '#f97316'
               case 'llmChat': return '#8b5cf6'
-              case 'imageCrop': return '#06b6d4'
               case 'characterExtract': return '#06b6d4'
               case 'storyboard': return '#a855f7'
               case 'characterManager': return '#6366f1'

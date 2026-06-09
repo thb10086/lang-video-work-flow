@@ -11,13 +11,14 @@
  */
 
 import { useFlowStore } from '@/store/flowStore'
-import { useAgentMemoryStore, type MemoryEntry } from '@/store/agentMemoryStore'
+import { useAgentMemoryStore, type MemoryEntry, type MemoryScope, type PhaseId } from '@/store/agentMemoryStore'
 import { useChatStore } from '@/store/chatStore'
 import { executeNode, executeNodesBatch, findNodeByLabel } from '@/providers/nodeExecutor'
 import { resolveNode, resolveNodeNotFound, type ToolCallResult } from './toolHelpers'
 import { sanitizeOnModelSwitch } from '@/providers/paramSanitizer'
 import type { ParamField } from '@/providers/types'
 import type { AiModelResponse } from '@/api/backend'
+import { _reviewAdapter } from './reviewAdapter'
 
 // ── Model schema cache (populated by handleGetModelParams + handleListModels) ──
 // Allows handleUpdateNode to perform sanitization on model switch without async fetch.
@@ -32,6 +33,24 @@ export function primeModelCache(capability: 'video' | 'image' | 'audio', models:
 }
 
 // ── Agent Infrastructure Tools ──
+
+const VALID_PHASES: readonly PhaseId[] = ['idle', 'planning', 'designing', 'building', 'reviewing', 'executing']
+
+export function handleSetPhase(args: Record<string, unknown>): ToolCallResult {
+  const phase = String(args.phase || '') as PhaseId
+  const reason = typeof args.reason === 'string' ? args.reason : ''
+  if (!VALID_PHASES.includes(phase)) {
+    return {
+      success: false,
+      message: `无效阶段「${phase}」。合法值：${VALID_PHASES.join(' | ')}`,
+    }
+  }
+  useAgentMemoryStore.getState().setPhase(phase, reason)
+  return {
+    success: true,
+    message: `阶段已切换至「${phase}」${reason ? `（${reason}）` : ''}。后续工具可用范围会按新阶段收窄。`,
+  }
+}
 
 export function handlePlanTask(args: Record<string, unknown>): ToolCallResult {
   const memStore = useAgentMemoryStore.getState()
@@ -72,13 +91,24 @@ export { handleVerifyTask } from './toolVerify'
 
 export function handleSaveMemory(args: Record<string, unknown>): ToolCallResult {
   const memStore = useAgentMemoryStore.getState()
+  const scope = (args.scope as MemoryScope) || 'session'
+  const pinned = args.pinned === true
+  // Auto-bind project-scoped memories to the active canvas so they only
+  // surface when that project is re-opened (Claude Code CLAUDE.md pattern).
+  const projectId = scope === 'project'
+    ? (typeof args.projectId === 'number' ? (args.projectId as number) : useFlowStore.getState().projectId ?? undefined)
+    : undefined
   const memId = memStore.saveMemory({
     type: (args.type as MemoryEntry['type']) || 'project_preference',
     title: String(args.title || ''),
     content: String(args.content || ''),
     tags: (args.tags as string[]) || [],
+    scope,
+    projectId,
+    pinned,
   })
-  return { success: true, message: `已保存记忆「${args.title}」(${memId})` }
+  const scopeLabel = scope === 'project' ? `project#${projectId ?? 'untagged'}` : scope
+  return { success: true, message: `已保存记忆「${args.title}」(${memId}, scope=${scopeLabel}${pinned ? ', pinned' : ''})` }
 }
 
 export function handleRecallMemory(args: Record<string, unknown>): ToolCallResult {
@@ -93,12 +123,57 @@ export function handleRecallMemory(args: Record<string, unknown>): ToolCallResul
   return { success: true, message: `找到 ${results.length} 条相关记忆:\n${lines.join('\n')}` }
 }
 
+export function handleForgetMemory(args: Record<string, unknown>): ToolCallResult {
+  const id = typeof args.id === 'string' && args.id ? args.id : undefined
+  const tag = typeof args.tag === 'string' && args.tag ? args.tag : undefined
+  const scope = typeof args.scope === 'string' ? (args.scope as MemoryScope) : undefined
+  const olderThan = typeof args.olderThan === 'number' ? args.olderThan : undefined
+
+  if (!id && !tag && !scope && olderThan === undefined) {
+    return {
+      success: false,
+      message: '至少提供一个过滤条件：id / tag / scope / olderThan。留空不会批量删除所有记忆（安全起见）。',
+    }
+  }
+
+  const removed = useAgentMemoryStore.getState().forgetMemory({ id, tag, scope, olderThan })
+  const filters: string[] = []
+  if (id) filters.push(`id=${id}`)
+  if (tag) filters.push(`tag=${tag}`)
+  if (scope) filters.push(`scope=${scope}`)
+  if (olderThan !== undefined) filters.push(`olderThan=${olderThan}ms`)
+  return { success: true, message: `已删除 ${removed} 条记忆 (${filters.join(', ')})` }
+}
+
 // ── Node CRUD + Execution Tools ──
 
 export function handleUpdateNode(args: Record<string, unknown>): ToolCallResult {
   const store = useFlowStore.getState()
-  const updates = args.updates as Record<string, unknown> | undefined
-  if (!updates) return { success: false, message: '需要提供 updates 字段' }
+
+  // Auto-recovery: LLM 经常把字段扁平传递而不包裹在 updates 中，
+  // 例如 {nodeLabel, model, prompt} 而非 {nodeLabel, updates: {model, prompt}}。
+  // 策略：
+  //   1) args.updates 不存在/非对象 → 提取所有非路由字段作为 updates
+  //   2) args.updates 存在 → 仍检查顶层是否有泄漏字段，合并进 updates（防止混合传参丢字段）
+  const ROUTING_KEYS = new Set(['nodeLabel', 'nodeId', 'updates'])
+  let updates = (args.updates && typeof args.updates === 'object')
+    ? { ...(args.updates as Record<string, unknown>) }
+    : undefined
+
+  // 提取顶层泄漏的非路由字段
+  const leaked: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(args)) {
+    if (!ROUTING_KEYS.has(k)) leaked[k] = v
+  }
+  const hasLeaked = Object.keys(leaked).length > 0
+
+  if (updates) {
+    // 混合传参：顶层泄漏字段补入 updates（updates 内的同名字段优先）
+    if (hasLeaked) updates = { ...leaked, ...updates }
+  } else if (hasLeaked) {
+    updates = leaked
+  }
+  if (!updates) return { success: false, message: '需要提供 updates 字段（或直接传入要更新的字段）' }
   const found = resolveNode(args)
   if (!found) return resolveNodeNotFound(args)
 
@@ -109,7 +184,17 @@ export function handleUpdateNode(args: Record<string, unknown>): ToolCallResult 
   //   3. Run sanitizeOnModelSwitch to drop stale fields
   let droppedInfo = ''
   const schemaAware = ['videoGen', 'imageGen', 'audioNode'].includes(found.type)
-  const modelChanging = schemaAware && 'model' in updates && updates.model !== undefined
+  // 关键：只有 model 字段值"真的发生变化"时才触发 schema sanitize。
+  // 旧实现只看 `'model' in updates` —— 当 Agent 重新发送相同 model 时也会触发
+  // sanitize，进而（若 _modelCache 未加载）用空 schema 把节点所有参数 nullify，
+  // 导致 duration/aspect_ratio/resolution 等字段全部丢失。
+  const currentNodeData = (store.nodes.find(n => n.id === found.id)?.data || {}) as Record<string, unknown>
+  const incomingModel = 'model' in updates ? updates.model : undefined
+  const modelChanging =
+    schemaAware &&
+    incomingModel !== undefined &&
+    incomingModel !== null &&
+    incomingModel !== currentNodeData.model
 
   // Special-case: `assetRefs` is union-merge, not replace, so repeated calls
   // accumulate rather than clobber. Pop it out of `updates` before other logic.
@@ -137,16 +222,24 @@ export function handleUpdateNode(args: Record<string, unknown>): ToolCallResult 
     const bm = cached?.find(m => m.model_id === newModelId)
     const schema = (bm?.param_schema?.length ? bm.param_schema : []) as ParamField[]
 
-    const current = (store.nodes.find(n => n.id === found.id)?.data || {}) as Record<string, unknown>
-    const merged = { ...current, ...mergedUpdates }
-    const { clean, removed } = sanitizeOnModelSwitch(merged, schema)
+    // 防御性：cache miss（schema 为空）时不要 sanitize —— 否则会把节点所有
+    // 参数当作 stale 清掉。直接 merge updates，留待用户手动调整或下次 cache
+    // 命中后再清洗。
+    if (schema.length === 0) {
+      console.warn('[handleUpdateNode] model cache miss for %s, skipping sanitize', newModelId)
+      store.updateNodeData(found.id, mergedUpdates)
+      droppedInfo = ` (注：模型 schema 缓存未加载，本次未清洗字段)`
+    } else {
+      const merged = { ...currentNodeData, ...mergedUpdates }
+      const { clean, removed } = sanitizeOnModelSwitch(merged, schema)
 
-    // Explicitly null out removed keys so Zustand shallow-merge drops them
-    const nullify: Record<string, unknown> = {}
-    for (const k of removed) nullify[k] = undefined
-    store.updateNodeData(found.id, { ...nullify, ...clean })
-    if (removed.length > 0) {
-      droppedInfo = ` (已清理不兼容字段: ${removed.join(', ')})`
+      // Explicitly null out removed keys so Zustand shallow-merge drops them
+      const nullify: Record<string, unknown> = {}
+      for (const k of removed) nullify[k] = undefined
+      store.updateNodeData(found.id, { ...nullify, ...clean })
+      if (removed.length > 0) {
+        droppedInfo = ` (已清理不兼容字段: ${removed.join(', ')})`
+      }
     }
   } else {
     store.updateNodeData(found.id, mergedUpdates)
@@ -378,10 +471,13 @@ export function handleInjectUserImages(args: Record<string, unknown>): ToolCallR
     return { success: false, message: '当前对话中未找到用户上传的图片。请让用户先上传图片再调用此工具。' }
   }
 
+  const autoDistribute = args.autoDistribute === true
   const results: string[] = []
   const affectedIds: string[] = []
 
+  let targetIdx = -1
   for (const target of targets) {
+    targetIdx++
     const found = resolveNode(target)
     if (!found) {
       const notFound = resolveNodeNotFound(target)
@@ -391,9 +487,17 @@ export function handleInjectUserImages(args: Record<string, unknown>): ToolCallR
 
     const field = String(target.field || 'referenceImages')
     const indices = (target.imageIndices as number[]) || undefined
-    const selectedImages = indices
-      ? indices.filter(i => i >= 0 && i < allUserImages.length).map(i => allUserImages[i])
-      : allUserImages
+    let selectedImages: string[]
+    if (autoDistribute) {
+      // Round-robin: target[i] receives image[i % allUserImages.length].
+      // imageIndices is ignored when autoDistribute is on (takes precedence
+      // as a simpler, Agent-friendly mode).
+      selectedImages = [allUserImages[targetIdx % allUserImages.length]]
+    } else if (indices) {
+      selectedImages = indices.filter(i => i >= 0 && i < allUserImages.length).map(i => allUserImages[i])
+    } else {
+      selectedImages = allUserImages
+    }
 
     if (selectedImages.length === 0) {
       results.push(`[skip] 节点「${found.label}」: 指定的图片索引无效`)
@@ -655,6 +759,38 @@ export async function handleLinkAssetToNode(args: Record<string, unknown>): Prom
   return {
     success: true,
     message: `已把素材「${resolved.asset.name}」(${assetId}) 链接到节点「${node.data?.label || nodeId}」`,
+  }
+}
+
+export function handleReviewGeneratedImage(args: Record<string, unknown>): ToolCallResult {
+  const resolved = resolveNode(args)
+  if (!resolved) return resolveNodeNotFound(args)
+
+  const store = useFlowStore.getState()
+  const node = store.nodes.find(n => n.id === resolved.id)
+  if (!node) return { success: false, message: `未找到节点: ${resolved.id}` }
+
+  const threshold = typeof args.threshold === 'number' ? args.threshold : undefined
+  const aspects = Array.isArray(args.aspects) ? (args.aspects as string[]) : undefined
+
+  const result = _reviewAdapter.review(
+    (node.data || {}) as Record<string, unknown>,
+    { threshold, aspects },
+  )
+
+  const label = resolved.label
+  const verdict = result.pass ? '✅ 通过' : '❌ 未通过'
+  const body = {
+    node: label,
+    score: result.score,
+    pass: result.pass,
+    issues: result.issues,
+    suggestions: result.suggestions,
+  }
+
+  return {
+    success: true,
+    message: `${verdict}（${result.score}/100）— 节点「${label}」\n\n${JSON.stringify(body, null, 2)}`,
   }
 }
 

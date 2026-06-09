@@ -190,3 +190,65 @@ export interface NodePort {
   required: boolean
   multi: boolean
 }
+
+// ============================================================
+// Structured ToolResult contract (D-6) — mirrors backend `app/agents/types.py`
+// ============================================================
+
+export interface ToolError {
+  code: string
+  message: string
+  recoverable: boolean
+}
+
+export interface ToolMeta {
+  elapsed_ms: number
+  cost_tokens?: number
+}
+
+export interface ToolResult<T = unknown> {
+  ok: boolean
+  data?: T
+  hints?: string[]
+  next_step?: string
+  error?: ToolError
+  meta?: ToolMeta
+}
+
+/** Legacy `ToolCallResult` shape used by all current `agentTools.executeToolCall` callers. */
+export interface LegacyToolCallResult {
+  success: boolean
+  message: string
+  nodeIds?: string[] | null
+}
+
+/**
+ * Adapter: project a structured `ToolResult` to the legacy `{success, message, nodeIds?}`
+ * shape so existing call sites don't need to be changed yet. The new SSE-driven
+ * runtime consumes `ToolResult` directly; this is only for back-compat with the
+ * frontend `chatStore` legacy path during the migration window.
+ */
+export function toLegacyResult<T = unknown>(result: ToolResult<T>): LegacyToolCallResult {
+  const parts: string[] = []
+  if (result.hints && result.hints.length > 0) parts.push(...result.hints)
+  if (result.data !== undefined && result.data !== null) {
+    try {
+      parts.push(JSON.stringify(result.data))
+    } catch {
+      parts.push(String(result.data))
+    }
+  } else if (result.error) {
+    parts.push(`[${result.error.code}] ${result.error.message}`)
+  }
+  const message = parts.join(' | ').slice(0, 200)
+
+  let nodeIds: string[] | null = null
+  if (result.data && typeof result.data === 'object') {
+    const obj = result.data as { affected_node_ids?: unknown; nodeIds?: unknown }
+    const ids = obj.affected_node_ids ?? obj.nodeIds
+    if (Array.isArray(ids)) {
+      nodeIds = ids.map((x) => String(x))
+    }
+  }
+  return { success: result.ok, message, nodeIds }
+}

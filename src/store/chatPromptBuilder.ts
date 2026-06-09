@@ -10,6 +10,7 @@
  */
 
 import { useSettingsStore } from '@/store/settingsStore'
+import { DEFAULT_VIDEO_MODEL, CONTEXT_TOKEN_CEILING, AUTO_COMPACT_THRESHOLD, FULL_COMPACT_THRESHOLD } from '@/providers/modelDefaults'
 import { getSystemPromptForRole } from '@/prompts/roles'
 import { buildSkillsPromptByPhase } from '@/prompts/skills'
 import { renderPromptEngineeringQuickRef } from '@/prompts/promptCraft'
@@ -119,9 +120,8 @@ export function buildMultimodalContent(text: string, images?: string[]): string 
 // Layer 3 — Full Compact: compress everything, re-inject only critical context
 // ============================================================
 
-const CONTEXT_TOKEN_CEILING = 120000  // model max context (GPT-4o / Gemini)
-const AUTO_COMPACT_THRESHOLD = 0.75   // trigger at 75% usage
-const FULL_COMPACT_THRESHOLD = 0.90   // trigger at 90% usage
+// 上下文压缩阈值从 modelDefaults.ts 统一管理
+// CONTEXT_TOKEN_CEILING / AUTO_COMPACT_THRESHOLD / FULL_COMPACT_THRESHOLD
 
 /**
  * Layer 1 — MicroCompact
@@ -347,16 +347,85 @@ export function compactConversationHistory(messages: ChatMessage[]): LLMMessage[
 }
 
 // ============================================================
+// Layered prompt architecture (Anthropic cache_control alignment)
+// ============================================================
+//
+// The system prompt is now produced as an ordered array of PromptSegments.
+// Callers may:
+//   • flatten them into a single string (legacy `buildAgentSystemPrompt`)
+//   • feed them to the backend as `{role:'system', content:[Block...]}` so
+//     stable/semi-stable blocks can be tagged with `cache_control` by
+//     Anthropic-compatible providers
+//
+// Stability tiers:
+//   • 'stable'      — mission / loop / error-handling / output-spec; same
+//                     across every turn of every session → top cache-priority.
+//   • 'semi-stable' — role prompt, phase-scoped SKILLS section; same within
+//                     a given phase+role → mid cache-priority.
+//   • 'dynamic'     — canvas state, memory, per-turn image hint → never cache.
+//
+// Adding a new layer is a single push into the segments array + a test.
+// DO NOT inline prompt text into chatStore.ts — all prompt copy lives here
+// or in src/prompts/.
+
+export interface PromptSegment {
+  /** Unique id across a single build call. Used for test introspection and cache-key prefixes. */
+  id: string
+  /** Rendered text. Empty string means the segment is elided for this build. */
+  text: string
+  /** Stability tier — governs whether the backend may attach cache_control. */
+  stability: 'stable' | 'semi-stable' | 'dynamic'
+}
+
+// ============================================================
 // Build professional agentic system prompt
 // ============================================================
-export function buildAgentSystemPrompt(roleId: string): string {
+export interface BuildAgentPromptOpts {
+  /** Number of images attached to the current user message (for hint injection). */
+  imageCount?: number
+  /** Current user message — enables relevance-ranked memory injection. */
+  userMessage?: string
+}
+
+/**
+ * Return the layered prompt as an ordered array of PromptSegments.
+ * Preferred entry point for new code — keeps structural information the
+ * backend needs for cache-control decisions.
+ */
+export function buildAgentSystemPromptSegments(
+  roleId: string,
+  opts?: BuildAgentPromptOpts,
+): PromptSegment[] {
   const rolePrompt = getSystemPromptForRole(roleId)
 
-  // ── Stable prefix (cacheable by LLM API) ──
-  // All static instructions go here. Dynamic context appended at the end.
-  const stablePrefix = `${rolePrompt}
+  // ── Dynamic context sources (read once, captured as segments below) ──
+  const canvasState = getCanvasSnapshot()
+  const memoryStore = useAgentMemoryStore.getState()
+  const currentProjectId = useFlowStore.getState().projectId
+  const memoryContext = memoryStore.getRelevantContext({
+    message: opts?.userMessage,
+    projectId: currentProjectId,
+  })
+  const agentPhase = memoryStore.currentPhase
+  const phase = (agentPhase && agentPhase !== 'idle') ? agentPhase : detectCurrentPhase()
+  const imageCount = opts?.imageCount ?? 0
+  const skillsPrompt = buildSkillsPromptByPhase(phase, { hasImages: imageCount > 0 })
 
-## 使命
+  const imageHint = imageCount > 0
+    ? `### 本轮输入\n\n用户上传了 ${imageCount} 张图像。可用 \`create_from_images\` 基于它们创建新节点（角色/场景/风格参考/编辑输入），或用 \`inject_user_images\` 绑定到已有节点。先用 \`classify_image\` 逐张分类再决定路由。`
+    : ''
+
+  const segments: PromptSegment[] = []
+
+  // ── Segment 1: core (stable) — mission, execution loop, HALT, error, output, constraints ──
+  // Pipeline recipe and multimodal protocol extracted to SKILL modules
+  // (videoWorkflowRecipe / multimodalInput) and loaded conditionally via
+  // buildSkillsPromptByPhase(). What remains here is the phase-invariant
+  // shared contract every session needs — target ≤ 800 tokens.
+  segments.push({
+    id: 'core',
+    stability: 'stable',
+    text: `## 使命
 
 通过工具调用完整驱动 AI 视频制片流程——从世界观搭建、角色设计、分镜拆解，到关键帧生成、视频合成、音频配音。**交付可用的视频素材，而非仅提供方案建议。**
 
@@ -374,132 +443,6 @@ export function buildAgentSystemPrompt(roleId: string): string {
 - 同一步骤连续失败 ≥3 次
 - 任务需要用户决策（如创意方向、角色选型）
 
-## 制片 Pipeline
-
-### 路径选择
-
-| 用户意图 | 选择 |
-|---------|------|
-| 完整视频项目（有故事/角色/多镜头） | **路径A：generate_workflow 快速模式**（推荐） |
-| 单独添加/修改某个节点 | **路径B：逐步模式**，按节点类型用对应 create_xxx 工具 |
-| 工作流已存在，只需执行 | 直接跳至执行序列，按依赖链顺序 batch/parallel_execute |
-
----
-
-### 路径A：快速模式
-
-#### Step 1 — generate_workflow（一次性传入所有内容，参数越完整画面越好）
-
-\`\`\`
-generate_workflow({
-  title:                "项目名",                          // 必填
-  description:          "完整故事梗概，3-5句",              // 必填
-  characterNames:       ["角色A", "角色B"],                // 强烈建议
-  characterDescriptions:["英文外貌描述A", "英文外貌描述B"], // 与 names 一一对应
-  sceneNames:           ["场景名1", "场景名2"],
-  sceneDescriptions:    ["英文环境描述1", "英文环境描述2"],
-  shotCount:            4,                                 // 3-8个镜头
-  shotPrompts:          [                                  // 每个关键帧图片提示词（英文）
-    "镜头1: [角色外貌+动作] + [环境] + [光影] + [风格质量]",
-    "镜头2: ..."
-  ],
-  videoPrompts:         [                                  // 每个视频提示词（英文）
-    "镜头1: [Camera motion]. [Subject+外貌词+动作]. [Atmosphere]. Cinematic 4K. No morphing.",
-    "镜头2: ..."
-  ],
-  styleDescription:     "整体视觉风格，如：赛博朋克、冷色调、霓虹、电影质感",
-  narrationText:        "旁白配音文本"
-})
-\`\`\`
-
-**自动创建的节点及其标签**（batch_execute / parallel_execute 必须使用这些精确标签）：
-
-| 节点类型 | 标签格式 | 示例 |
-|--------|---------|------|
-| textNode | \`{title} - 剧本\` | 追风 - 剧本 |
-| storyboard | \`分镜脚本\` | 分镜脚本 |
-| characterGrid | \`角色: {charName}\` | 角色: 林夏 |
-| sceneGrid | \`场景: {sceneName}\` | 场景: 天台 |
-| styleLock | \`风格锁定\` | 风格锁定 |
-| imageGen | \`镜头{N} 关键帧\` | 镜头1 关键帧 |
-| videoGen | \`镜头{N} 视频\` | 镜头1 视频 |
-| videoStitch | \`最终合成\` | 最终合成 |
-
-#### Step 2 — 执行序列（严格按顺序，禁止跳跃）
-
-**阶段一：风格锁定 + 角色/场景准备（串行，有依赖）**
-\`\`\`
-batch_execute(nodeLabels: ["风格锁定", "角色: A", "角色: B", "分镜脚本"])
-\`\`\`
-验证：\`get_node_output\` 确认 styleLock.extractedStyle / characterGrid.outputImage / storyboard.shots 均存在
-
-**阶段二：关键帧生成（并行，无依赖）**
-\`\`\`
-parallel_execute(nodeLabels: ["镜头1 关键帧", "镜头2 关键帧", ...], concurrency: 4)
-\`\`\`
-验证：\`get_node_output\` 抽查 1-2 个节点确认 outputImage 存在 → 告知用户关键帧就绪，询问是否提交视频
-
-**阶段三：视频提交（并行，异步）**
-\`\`\`
-parallel_execute(nodeLabels: ["镜头1 视频", "镜头2 视频", ...], concurrency: 4)
-\`\`\`
-立即返回（任务异步执行 60-300 秒）→ 告知用户等待，视频完成后再告诉你
-
-**阶段四：后期合成（视频完成后，用户确认）**
-\`\`\`
-batch_execute(nodeLabels: ["最终合成"])
-\`\`\`
-验证：\`get_node_output\` 确认 videoStitch.clips 列表非空 → \`verify_task\` 自检
-
-**性能参考**：8个关键帧串行≈4分钟 → parallel_execute≈30秒（8x）；8个视频并行提交≈5分钟（vs 串行40分钟）
-
----
-
-### 路径B：逐步模式
-
-**Phase 1 — Pre-Production（前期筹备）**
-1. \`plan_task\` 制定分步计划
-2. \`create_text_node\` 撰写剧本（content 填入完整剧本文本）
-3. \`create_style_lock_node\`（styleDescription）→ \`execute_node\` → 确认 extractedStyle（风格锁定先于角色/场景，确保风格一致）
-4. 每个角色：\`create_character_grid\`（name + description 英文外貌词）→ \`execute_node\` → \`get_node_output\` 确认 outputImage
-5. 每个场景：\`create_scene_grid\`（name + description + style + mood）→ \`execute_node\` → \`get_node_output\` 确认 outputImage
-
-**Phase 2 — Design（设计定稿）**
-6. \`create_storyboard_node\`（script）→ \`execute_node\` → \`get_node_output\` 获取 shots[] 列表
-
-**Phase 3 — Production（生产制作）**
-
-依赖链不可违反，见下方「依赖链约束」
-
-7. 每个镜头：\`create_image_node\`（label="镜头N 关键帧", prompt=英文图片提示词, aspectRatio）→ \`connect_nodes\`（各 characterGrid→imageGen, ref-in）→ \`connect_nodes\`（styleLock→imageGen, style-in）
-8. \`parallel_execute\`（所有 imageGen, concurrency=4）→ 抽查确认 outputImage
-9. 每个镜头：\`create_video_node\`（label="镜头N 视频", prompt=英文视频提示词, model 默认即可；如需非默认模型可先 \`get_model_params\` 获取参数范围）→ \`connect_nodes\`（imageGen→videoGen, first-frame）
-10. \`parallel_execute\`（所有 videoGen, concurrency=4）→ 异步任务，立即返回
-
-**Phase 4 — Post-Production（后期合成）**
-11. \`create_video_stitch_node\` → \`connect_nodes\`（各 videoGen→stitch）→ 用户确认视频完成后 \`execute_node\`
-12. 可选：\`create_continuity_check_node\` → \`connect_nodes\`（相邻 imageGen 输出）→ \`execute_node\`
-13. \`verify_task\` 自检完成状态
-
----
-
-### 依赖链约束（不可违反）
-
-\`\`\`
-characterGrid → imageGen → videoGen
-\`\`\`
-
-- 未执行 characterGrid 直接执行 imageGen = 零角色参考（每帧人物外貌不一致）
-- 未执行 imageGen 直接提交 videoGen = 无首帧引导（视频内容不可控）
-- 系统有 autoExecutePrerequisites 机制，但仍需主动按序执行
-
-**数据流**（执行后自动传播，无需手动复制）：
-characterGrid.outputImage → imageGen.referenceImages[] → imageGen.outputImage → videoGen.firstFrameImage
-
-**所有节点类型均支持 execute_node**：characterGrid / sceneGrid / imageGen / videoGen / storyboard / styleLock / llmChat / imageEdit / continuityCheck / videoStitch / audioNode（textNode 无需执行）
-
-${renderPromptEngineeringQuickRef()}
-
 ## 模型参数
 
 每个视频/图片/音频模型有自己的参数 schema（来自后端 DB）。\`create_video_node\`/\`create_image_node\`/\`create_audio_node\` 的 schema 会随模型切换自动切换，字段描述中 \`[仅适用于 <ids>]\` 标注非通用字段。
@@ -507,7 +450,7 @@ ${renderPromptEngineeringQuickRef()}
 需要精确参数时：
 - \`list_models\` — 查看当前所有已注册模型（含 capability）
 - \`get_model_params(model_id)\` — 获取某个模型的完整 ParamField schema
-- 默认视频模型见 \`DEFAULT_VIDEO_MODEL\`（当前为 doubao-seedance-2-0）
+- 默认视频模型见 \`DEFAULT_VIDEO_MODEL\`（当前为 ${DEFAULT_VIDEO_MODEL}）
 - 不支持的字段在提交时会被自动过滤（前端 sanitizer + 后端 422 双保险）
 
 ## 错误处理协议
@@ -529,58 +472,116 @@ ${renderPromptEngineeringQuickRef()}
 
 不在执行前输出计划列表，不做冗长分析，先执行后报告。
 
-## 用户图片处理协议
-
-当用户消息包含图片时（你会在 content 中看到 image_url 内容），按以下流程处理：
-
-### 单图流程
-1. 调用 \`classify_image\`(imageIndex=0) 自动分类图片类型
-2. 根据分类结果 + 用户文字描述，确定图片用途
-3. 使用 \`inject_user_images\` 注入到对应节点
-
-### 多图流程（≥2 张）
-1. 对每张图片调用 \`classify_image\`(imageIndex=0,1,2...)
-2. 按分类结果分组，一次性路由：
-   | 分类 | 注入目标 | 字段 |
-   |------|----------|------|
-   | product | imageGen | referenceImages |
-   | character | characterGrid | inputImage |
-   | scene | sceneGrid | inputImage |
-   | style_ref | styleLock | referenceImage |
-   | logo | imageGen(Logo节点) | referenceImages |
-3. 使用 \`inject_user_images\` 批量注入（一次调用，多个 targets）
-
-### 路由规则
-- 产品图/角色参考 → imageGen 的 \`referenceImages\`（作为参考图指导生成）
-- 风格参考 → styleLock 的 \`referenceImage\`
-- 需要编辑的图片 → imageEdit 的 \`inputImage\`
-- 视频首帧 → videoGen 的 \`firstFrameImage\`
-
-### 典型场景
-- 用户上传产品图 → \`classify_image\` → \`detect_scenario\`(product_ad) → \`generate_workflow\`(scenario=product_ad) → \`inject_user_images\` 注入
-- 用户上传角色照片 → \`classify_image\` → 注入 characterGrid → 保持角色一致性
-- 用户上传多张混合图 → 逐张 \`classify_image\` → 按类型分组注入不同节点
-
 ## 约束
 
 1. **内容质量**：节点内容必须专业充实——角色有完整外貌 | 场景有空间层次 | 镜头有运镜方案
 2. **验证驱动**：每个图片/视频节点执行后必须 \`get_node_output\` 确认输出，据此决策下一步
 3. **提示词语言**：角色/场景/镜头描述使用英文；解释、对话、报告使用中文
 4. **信息隔离**：禁止暴露节点 ID、内部坐标、技术实现细节
-5. **无 emoji**：全程禁止使用 emoji 表情符号`
+5. **无 emoji**：全程禁止使用 emoji 表情符号
 
-  // ── Dynamic suffix (changes per call, not cached) ──
-  const canvasState = getCanvasSnapshot()
-  const memoryStore = useAgentMemoryStore.getState()
-  const memoryContext = memoryStore.getRelevantContext()
-  const phase = detectCurrentPhase()
-  const skillsPrompt = buildSkillsPromptByPhase(phase)
+${renderPromptEngineeringQuickRef()}`,
+  })
 
-  const dynamicSuffix = [
-    `\n---\n\n## 当前上下文\n\n### 画布状态\n\n${canvasState}`,
-    memoryContext ? `### 项目记忆\n\n${memoryContext}` : '',
-    skillsPrompt ? `### 可用技能 (${phase})\n\n${skillsPrompt}` : '',
-  ].filter(Boolean).join('\n\n')
+  // ── Segment 2: role (semi-stable) — role-specific preamble ──
+  segments.push({
+    id: 'role',
+    stability: 'semi-stable',
+    text: rolePrompt,
+  })
 
-  return `${stablePrefix}\n${dynamicSuffix}`
+  // ── Segment 3: skills (semi-stable per phase+hasImages) ──
+  // Pipeline recipe + multimodal protocol (if hasImages) live in here.
+  if (skillsPrompt) {
+    segments.push({
+      id: `skills:${phase}${imageCount > 0 ? ':withImages' : ''}`,
+      stability: 'semi-stable',
+      text: `### 可用技能 (${phase})\n\n${skillsPrompt}`,
+    })
+  }
+
+  // ── Segment 4: image hint (dynamic) — only present when images attached ──
+  if (imageHint) {
+    segments.push({
+      id: 'image_hint',
+      stability: 'dynamic',
+      text: imageHint,
+    })
+  }
+
+  // ── Segment 5: memory (dynamic) — relevance-ranked project memories ──
+  if (memoryContext) {
+    segments.push({
+      id: 'memory',
+      stability: 'dynamic',
+      text: `### 项目记忆\n\n${memoryContext}`,
+    })
+  }
+
+  // ── Segment 6: canvas state (dynamic) — always present, always last ──
+  segments.push({
+    id: 'canvas_state',
+    stability: 'dynamic',
+    text: `---\n\n## 当前上下文\n\n### 画布状态\n\n${canvasState}`,
+  })
+
+  return segments
+}
+
+/**
+ * Legacy string-returning builder. Flattens the segment array with a
+ * standard "\n\n" joiner. Keep in sync with {@link buildAgentSystemPromptSegments}
+ * — prefer that API for any new code path that wants cache_control.
+ */
+export function buildAgentSystemPrompt(roleId: string, opts?: BuildAgentPromptOpts): string {
+  const segments = buildAgentSystemPromptSegments(roleId, opts)
+  return segments.map(s => s.text).filter(Boolean).join('\n\n')
+}
+
+// ============================================================
+// Cache-controlled system content block builder
+// ============================================================
+
+export interface SystemContentBlock {
+  type: 'text'
+  text: string
+  cache_control?: { type: 'ephemeral' }
+}
+
+/**
+ * Build an Anthropic-style structured system-message `content` array from
+ * layered PromptSegments. Stable + semi-stable segments get a
+ * `cache_control: {type: 'ephemeral'}` marker so supporting providers can
+ * cache them across turns. Dynamic segments are sent as plain text blocks.
+ *
+ * Anthropic allows up to 4 cache breakpoints per request; we emit at most
+ * 3 (core, role, skills) — well within the limit.
+ *
+ * When the downstream provider does not support cache_control (OpenAI),
+ * the backend is responsible for flattening this array back to a single
+ * string before forwarding.
+ */
+export function buildSystemContentBlocks(segments: PromptSegment[]): SystemContentBlock[] {
+  const blocks: SystemContentBlock[] = []
+  const cacheableIds = new Set<string>()
+  // Collect the ids that should carry a cache breakpoint.
+  for (const s of segments) {
+    if ((s.stability === 'stable' || s.stability === 'semi-stable') && s.text) {
+      cacheableIds.add(s.id)
+    }
+  }
+  // Emit one block per segment. Attach cache_control only to the last
+  // cacheable segment within each contiguous run — Anthropic's docs say
+  // breakpoints count cumulatively from the start, so trailing markers
+  // implicitly cache everything before them.
+  const lastCacheableId = [...cacheableIds].pop()
+  for (const s of segments) {
+    if (!s.text) continue
+    const block: SystemContentBlock = { type: 'text', text: s.text }
+    if (s.id === lastCacheableId) {
+      block.cache_control = { type: 'ephemeral' }
+    }
+    blocks.push(block)
+  }
+  return blocks
 }

@@ -35,6 +35,15 @@ export const NODE_PORT_REGISTRY: Record<string, NodePort[]> = {
     { id: 'grid-out', label: '九宫图', dataType: PortDataType.IMAGE, direction: 'output', required: false, multi: true },
     { id: 'views-out', label: '视角集', dataType: PortDataType.IMAGE_SET, direction: 'output', required: false, multi: true },
   ],
+  // keyframeGrid (PoC v0.1) — 镜头级分镜拼贴图。一张图含 4/6/9 帧。
+  // grid-out：整张拼贴大图（PortDataType.IMAGE），可作为 imageGen 的 ref 注入。
+  // frames-out：未来 v2 切分后的子帧集合（PortDataType.IMAGE_SET），PoC 阶段先注册占位。
+  keyframeGrid: [
+    { id: 'prompt-in', label: '镜头提示', dataType: PortDataType.TEXT, direction: 'input', required: false, multi: false },
+    { id: 'ref-in', label: '参考图', dataType: PortDataType.IMAGE, direction: 'input', required: false, multi: false },
+    { id: 'grid-out', label: '拼贴图', dataType: PortDataType.IMAGE, direction: 'output', required: false, multi: true },
+    { id: 'frames-out', label: '子帧集', dataType: PortDataType.IMAGE_SET, direction: 'output', required: false, multi: true },
+  ],
   imageGen: [
     { id: 'prompt-in', label: '提示词', dataType: PortDataType.TEXT, direction: 'input', required: false, multi: false },
     { id: 'ref-in', label: '参考图', dataType: PortDataType.IMAGE, direction: 'input', required: false, multi: false },
@@ -63,10 +72,6 @@ export const NODE_PORT_REGISTRY: Record<string, NodePort[]> = {
   promptNode: [
     { id: 'vars-in', label: '变量', dataType: PortDataType.TEXT, direction: 'input', required: false, multi: true },
     { id: 'prompt-out', label: '提示词', dataType: PortDataType.PROMPT, direction: 'output', required: false, multi: true },
-  ],
-  imageCrop: [
-    { id: 'grid-in', label: '九宫图', dataType: PortDataType.IMAGE, direction: 'input', required: true, multi: false },
-    { id: 'image-out', label: '裁切图', dataType: PortDataType.IMAGE, direction: 'output', required: false, multi: true },
   ],
   characterExtract: [
     { id: 'video-in', label: '视频', dataType: PortDataType.VIDEO, direction: 'input', required: true, multi: false },
@@ -97,6 +102,39 @@ export const NODE_PORT_REGISTRY: Record<string, NodePort[]> = {
   imageEdit: [
     { id: 'image-in', label: '原图', dataType: PortDataType.IMAGE, direction: 'input', required: true, multi: false },
     { id: 'image-out', label: '编辑后', dataType: PortDataType.IMAGE, direction: 'output', required: false, multi: true },
+  ],
+  // ──────────────────────────────────────────────────────────────────
+  // characterAsset (task 2.4.3) — unified character node whose actual
+  // port surface depends on `data.mode`. The dispatcher in
+  // `CharacterAssetNode.tsx` only renders the handles relevant to the
+  // active mode, so React Flow itself never wires up a port that
+  // doesn't apply.
+  //
+  // The entry below is the *union* of all three modes' ports. It only
+  // gets consulted by:
+  //   - `canConnect` / `getPortDataType` for type-checking edges (the
+  //     mode-specific component already prevented invalid handle ids
+  //     at render time, so the union is a soft fallback).
+  //   - test scaffolding (`workflowQuality.test.ts` /
+  //     `agentGenerationEvaluation.test.ts`) which iterates port lists
+  //     by node type to validate edge handle existence — those checks
+  //     are now satisfied for any of the three modes.
+  // If callers ever need strict per-mode validation, they should use
+  // `characterKind(node)` from `nodeExecutor.ts` to look up the legacy
+  // type entry directly instead of this union.
+  // ──────────────────────────────────────────────────────────────────
+  characterAsset: [
+    // design-mode handles (legacy: characterGrid)
+    { id: 'prompt-in', label: '提示词', dataType: PortDataType.TEXT, direction: 'input', required: false, multi: false },
+    { id: 'ref-in', label: '参考图', dataType: PortDataType.IMAGE, direction: 'input', required: false, multi: false },
+    { id: 'grid-out', label: '九宫图', dataType: PortDataType.IMAGE, direction: 'output', required: false, multi: true },
+    { id: 'views-out', label: '视角集', dataType: PortDataType.IMAGE_SET, direction: 'output', required: false, multi: true },
+    // extract-mode handles (legacy: characterExtract)
+    { id: 'video-in', label: '视频', dataType: PortDataType.VIDEO, direction: 'input', required: false, multi: false },
+    // registry-mode handles (legacy: characterManager)
+    { id: 'character-in', label: '角色输入', dataType: PortDataType.CHARACTER, direction: 'input', required: false, multi: true },
+    // shared between extract + registry
+    { id: 'character-out', label: '角色', dataType: PortDataType.CHARACTER, direction: 'output', required: false, multi: true },
   ],
 }
 

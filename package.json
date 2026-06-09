@@ -9,7 +9,10 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "eval": "node scripts/run-eval.mjs",
+    "eval:update": "node scripts/run-eval.mjs --update-baseline",
+    "eval:parity": "node scripts/eval-parity.mjs"
   },
   "dependencies": {
     "@ffmpeg/core": "^0.12.9",

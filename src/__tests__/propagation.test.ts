@@ -262,3 +262,70 @@ describe('pullFromUpstream', () => {
     expect(vid.data.firstFrameImage).toBe('data:image/png;base64,FRAME')
   })
 })
+
+// ────────────────────────────────────────────────────────────
+describe('propagateNodeOutput — character-in (LibTV character flow)', () => {
+  beforeEach(reset)
+
+  it('characterExtract → videoGen: surfaces characterUrl + characterImage', () => {
+    injectNode('ext', 'characterExtract', {
+      characterUrl: 'https://cos.example.com/char.png',
+      characterId: 'char_abc',
+      label: '提取',
+    })
+    injectNode('vid', 'videoGen', { label: 'Vid' })
+    injectEdge('ext', 'vid', 'character-out', 'character-in')
+
+    _testPropagateNodeOutput('ext')
+
+    const vid = useFlowStore.getState().nodes.find(n => n.id === 'vid')!
+    expect(vid.data.characterUrl).toBe('https://cos.example.com/char.png')
+    expect(vid.data.characterImage).toBe('https://cos.example.com/char.png')
+    expect(vid.data.characterId).toBe('char_abc')
+  })
+
+  it('characterExtract → characterManager: appends to characters[] (de-dup)', () => {
+    injectNode('ext', 'characterExtract', {
+      characterUrl: 'https://cos.example.com/char.png',
+      characterId: 'char_abc',
+      name: '小红',
+      description: '红色连衣裙',
+      label: '提取',
+    })
+    injectNode('mgr', 'characterManager', { characters: [], label: '库' })
+    injectEdge('ext', 'mgr', 'character-out', 'character-in')
+
+    _testPropagateNodeOutput('ext')
+
+    const mgr = useFlowStore.getState().nodes.find(n => n.id === 'mgr')!
+    const chars = mgr.data.characters as Array<Record<string, unknown>>
+    expect(chars).toHaveLength(1)
+    expect(chars[0].name).toBe('小红')
+    expect(chars[0].characterUrl).toBe('https://cos.example.com/char.png')
+    expect(chars[0].characterId).toBe('char_abc')
+
+    // Second propagation is a no-op (de-dup on characterId)
+    _testPropagateNodeOutput('ext')
+    const mgr2 = useFlowStore.getState().nodes.find(n => n.id === 'mgr')!
+    expect((mgr2.data.characters as unknown[]).length).toBe(1)
+  })
+
+  it('characterManager → videoGen: pulls characters[] registry via pullFromUpstream', () => {
+    injectNode('mgr', 'characterManager', {
+      characters: [
+        { id: 'c1', name: '小红', characterUrl: 'https://cos.example.com/a.png' },
+        { id: 'c2', name: '小明', characterUrl: 'https://cos.example.com/b.png' },
+      ],
+      label: '库',
+    })
+    injectNode('vid', 'videoGen', { label: 'Vid' })
+    injectEdge('mgr', 'vid', 'character-out', 'character-in')
+
+    _testPullFromUpstream('vid')
+
+    const vid = useFlowStore.getState().nodes.find(n => n.id === 'vid')!
+    const chars = vid.data.characters as Array<Record<string, unknown>>
+    expect(chars).toHaveLength(2)
+    expect(chars[0].name).toBe('小红')
+  })
+})

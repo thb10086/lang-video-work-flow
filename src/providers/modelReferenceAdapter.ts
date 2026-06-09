@@ -42,7 +42,15 @@ export interface InjectionResult {
   notes: string[]
 }
 
-export type VideoStrategyId = 'seedance' | 'veo' | 'sora' | 'kling' | 'fallback'
+export type VideoStrategyId =
+  | 'seedance'
+  | 'veo'
+  | 'sora'
+  | 'kling'
+  | 'wan'
+  | 'hailuo'
+  | 'grok'
+  | 'fallback'
 
 export type Strategy = (payload: InjectionPayload, schema: ParamField[]) => InjectionResult
 
@@ -152,6 +160,77 @@ export const klingStrategy: Strategy = (payload, _schema) => {
 }
 
 /**
+ * Wan 2.6 Flash (阿里万相): native i2v via `image` (single first-frame field).
+ * Reference images beyond the first are dropped — Wan i2v 只接受单图驱动。
+ */
+export const wanStrategy: Strategy = (payload, _schema) => {
+  const notes: string[] = []
+  const params: Record<string, unknown> = {}
+  const all = uniq([...payload.existingImages, ...payload.referenceImages])
+  if (all.length > 0) {
+    params.image = all[0]
+    if (all.length > 1) {
+      notes.push(`Wan 仅消费单张参考图（image），已丢弃 ${all.length - 1} 张`)
+    }
+  }
+  if (payload.characterUrls.length > 0) {
+    notes.push(`Wan 不支持 Sora Character URL，已忽略 ${payload.characterUrls.length} 个`)
+  }
+  // images[] 同时填一份兜底（toapis 适配器会把它转成 image_urls）
+  return { images: all.slice(0, 1), params, notes }
+}
+
+/**
+ * MiniMax Hailuo 2.3 (海螺): i2v also via `first_frame`. Multiple references
+ * not natively supported — keep the first.
+ */
+export const hailuoStrategy: Strategy = (payload, _schema) => {
+  const notes: string[] = []
+  const params: Record<string, unknown> = {}
+  const all = uniq([...payload.existingImages, ...payload.referenceImages])
+  if (all.length > 0) {
+    params.first_frame = all[0]
+    if (all.length > 1) {
+      notes.push(`Hailuo 仅消费首帧（first_frame），已丢弃 ${all.length - 1} 张`)
+    }
+  }
+  if (payload.characterUrls.length > 0) {
+    notes.push(`Hailuo 不支持 Sora Character URL，已忽略 ${payload.characterUrls.length} 个`)
+  }
+  return { images: all.slice(0, 1), params, notes }
+}
+
+/**
+ * Grok Video 3 (xAI): native multi-image i2v via top-level `images` field
+ * (toapis docs limit: 1–3 URLs). 与 Seedance 类似 — 多图都丢进 images，
+ * 不需要 character API（toapis 网关层不支持 grok 的 character_url）。
+ *
+ * 注入顺序（保留语义优先级）：
+ *   existingImages（用户在节点上设的首帧/末帧） →
+ *   referenceImages（@assetRefs 解析的角色/风格 URL）→
+ *   characterUrls（从 asset metadata 拿到的 Sora character URL；grok 不识别 character API
+ *   但这些 URL 本身就是图，可以当 reference 用，避免被 sora 路径独占）
+ * 截断到 3 张（grok 上限），后端 toapis_adapter 也会再做一次 3 张截断兜底。
+ *
+ * 不主动注入 seconds / aspect_ratio：DB schema 的 default 已被 sanitizeOnModelSwitch
+ * 自动填充（"10" / "16:9"），strategy 不与 schema 默认值竞争。
+ */
+export const grokStrategy: Strategy = (payload, _schema) => {
+  const notes: string[] = []
+  // 把 sora-style character URL 当 reference 图用（grok 不识别 character API）
+  const merged = uniq([
+    ...payload.existingImages,
+    ...payload.referenceImages,
+    ...payload.characterUrls,
+  ])
+  const images = merged.slice(0, 3)
+  if (merged.length > 3) {
+    notes.push(`Grok 最多接受 3 张参考图，已丢弃 ${merged.length - 3} 张`)
+  }
+  return { images, params: {}, notes }
+}
+
+/**
  * Fallback: model not recognized. Pass through existing frames + up to one
  * reference image. Never fail; the backend validator catches any stray field.
  */
@@ -170,12 +249,19 @@ export const fallbackStrategy: Strategy = (payload, _schema) => {
 
 // ── Dispatch ──
 
+/**
+ * 模型 ID → strategy 的探测器。用 includes 而非 startsWith 让命名宽容
+ * （如 `kling-v2-6` 和 `kling-v3` 都识别为 kling，`minimax-hailuo-2-3` 识别为 hailuo）。
+ */
 function detectVideoStrategy(modelId: string): VideoStrategyId {
   const id = modelId.toLowerCase()
-  if (id.startsWith('doubao-seedance')) return 'seedance'
-  if (id.startsWith('veo')) return 'veo'
-  if (id.startsWith('sora')) return 'sora'
-  if (id.startsWith('kling')) return 'kling'
+  if (id.includes('seedance')) return 'seedance'
+  if (id.includes('veo')) return 'veo'
+  if (id.includes('sora')) return 'sora'
+  if (id.includes('kling')) return 'kling'
+  if (id.includes('wan')) return 'wan'
+  if (id.includes('hailuo') || id.includes('minimax')) return 'hailuo'
+  if (id.includes('grok')) return 'grok'
   return 'fallback'
 }
 
@@ -184,6 +270,9 @@ const STRATEGY_TABLE: Record<VideoStrategyId, Strategy> = {
   veo: veoStrategy,
   sora: soraStrategy,
   kling: klingStrategy,
+  wan: wanStrategy,
+  hailuo: hailuoStrategy,
+  grok: grokStrategy,
   fallback: fallbackStrategy,
 }
 

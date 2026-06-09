@@ -13,6 +13,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.channel_service import ChannelService
+from app.services.media_url_normalizer import normalize_image_list, normalize_params_inplace
 from app.services.model_service import ModelService
 from app.services.param_validator import ParamValidationError, validate_params
 from app.services.task_service import TaskService
@@ -55,9 +56,19 @@ class VideoService:
         if not channels:
             raise RuntimeError(f"No channels for model: {model_id}")
 
+        # 把 base64 / data URL 参考图先上传到 COS（适配器只接受 http URL）
+        # 否则 i2v 模型会降级成 t2v —— 角色/场景一致性彻底丢失
+        img_urls = await normalize_image_list(images)
+        if images and len(img_urls) < len(images):
+            logger.info(
+                "video_service: normalized images %d → %d (dropped %d)",
+                len(images), len(img_urls), len(images) - len(img_urls),
+            )
+        await normalize_params_inplace(clean_params)
+
         submit_params = {
             "prompt": prompt,
-            "images": images or [],
+            "images": img_urls,
             **clean_params,
         }
 

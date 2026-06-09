@@ -89,6 +89,18 @@ export interface AiModelListResponse {
   total: number
 }
 
+// ── Vision Verify DTOs ──
+
+export interface VerifyImageResponse {
+  match_score: number
+  detected_subjects: string[]
+  missing_elements: string[]
+  unexpected_elements: string[]
+  recommendation: 'accept' | 'retry' | 'edit_prompt'
+  reasoning: string
+  cached?: boolean
+}
+
 // ── Asset Library DTOs ──
 
 export type AssetKind = 'character' | 'scene' | 'style'
@@ -255,6 +267,17 @@ export const backendApi = {
 
   uploadBatch: (images: { data: string; filename?: string }[]) =>
     api.post<BatchUploadResponse>('/api/upload/batch', { images }),
+
+  // ── Vision Verify (semantic image QC) ──
+  verifyImage: (params: {
+    image_url: string
+    model: string
+    criteria: {
+      subjects?: string[]
+      style?: string
+      threshold?: number
+    }
+  }) => api.post<VerifyImageResponse>('/api/verify/image', params),
 
   // ── Asset Library ──
   listAssets: (params: {

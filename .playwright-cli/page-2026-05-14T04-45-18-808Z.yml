@@ -1,0 +1,670 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - button "节点面板 (Ctrl+B)" [ref=e6] [cursor=pointer]:
+        - img [ref=e7]
+      - generic [ref=e10]: P
+      - heading "Prism AI" [level=1] [ref=e11]
+      - generic [ref=e12]: v0.4
+    - generic [ref=e13]:
+      - button "模板" [ref=e14] [cursor=pointer]:
+        - img [ref=e15]
+        - text: 模板
+      - button "素材" [ref=e19] [cursor=pointer]:
+        - img [ref=e20]
+        - text: 素材
+      - button "导入" [ref=e22] [cursor=pointer]:
+        - img [ref=e23]
+        - text: 导入
+      - button "导出" [ref=e26] [cursor=pointer]:
+        - img [ref=e27]
+        - text: 导出
+      - button "运行" [ref=e31] [cursor=pointer]:
+        - img [ref=e32]
+        - text: 运行
+      - button "Agent (Ctrl+J)" [ref=e35] [cursor=pointer]:
+        - img [ref=e36]
+      - button "设置" [ref=e38] [cursor=pointer]:
+        - img [ref=e39]
+      - button "全屏 (Ctrl+Shift+F)" [ref=e42] [cursor=pointer]:
+        - img [ref=e43]
+  - generic [ref=e48]:
+    - generic [ref=e123]:
+      - generic [ref=e124]:
+        - heading "节点面板" [level=2] [ref=e125]
+        - paragraph [ref=e126]: 拖拽节点到画布
+      - generic [ref=e127]:
+        - generic [ref=e128]:
+          - img [ref=e130]
+          - generic [ref=e133]:
+            - paragraph [ref=e134]: 角色九宫图
+            - paragraph [ref=e135]: Gemini 生成单张角色参考图
+        - generic [ref=e136]:
+          - img [ref=e138]
+          - generic [ref=e140]:
+            - paragraph [ref=e141]: 场景九宫图
+            - paragraph [ref=e142]: Gemini 生成单张场景参考图
+        - generic [ref=e143]:
+          - img [ref=e145]
+          - generic [ref=e150]:
+            - paragraph [ref=e151]: 分镜拼贴图
+            - paragraph [ref=e152]: 一张图含 4/6/9 帧拼贴（剧情推演 / 动作分解 / 多机位）
+        - generic [ref=e153]:
+          - img [ref=e155]
+          - generic [ref=e159]:
+            - paragraph [ref=e160]: 图片生成
+            - paragraph [ref=e161]: 多模型图片生成
+        - generic [ref=e162]:
+          - img [ref=e164]
+          - generic [ref=e167]:
+            - paragraph [ref=e168]: 视频生成
+            - paragraph [ref=e169]: 多模型视频生成
+        - generic [ref=e170]:
+          - img [ref=e172]
+          - generic [ref=e175]:
+            - paragraph [ref=e176]: 文本/脚本
+            - paragraph [ref=e177]: 脚本 / 对话 / 旁白
+        - generic [ref=e178]:
+          - img [ref=e180]
+          - generic [ref=e184]:
+            - paragraph [ref=e185]: 音频生成
+            - paragraph [ref=e186]: TTS 语音合成
+        - generic [ref=e187]:
+          - img [ref=e189]
+          - generic [ref=e191]:
+            - paragraph [ref=e192]: LLM 对话
+            - paragraph [ref=e193]: 大模型对话推理
+        - generic [ref=e194]:
+          - img [ref=e196]
+          - generic [ref=e200]:
+            - paragraph [ref=e201]: 角色提取
+            - paragraph [ref=e202]: 视频中提取角色形象
+        - generic [ref=e203]:
+          - img [ref=e205]
+          - generic [ref=e207]:
+            - paragraph [ref=e208]: 分镜脚本
+            - paragraph [ref=e209]: AI 拆解剧本为分镜
+        - generic [ref=e210]:
+          - img [ref=e212]
+          - generic [ref=e217]:
+            - paragraph [ref=e218]: 角色管理器
+            - paragraph [ref=e219]: 统一管理角色形象
+        - generic [ref=e220]:
+          - img [ref=e222]
+          - generic [ref=e228]:
+            - paragraph [ref=e229]: 风格锁定
+            - paragraph [ref=e230]: 提取并锁定画面风格
+        - generic [ref=e231]:
+          - img [ref=e233]
+          - generic [ref=e240]:
+            - paragraph [ref=e241]: 连续性检查
+            - paragraph [ref=e242]: 检测镜头间一致性
+        - generic [ref=e243]:
+          - img [ref=e245]
+          - generic [ref=e250]:
+            - paragraph [ref=e251]: 视频拼接
+            - paragraph [ref=e252]: 多段视频合并拼接
+        - generic [ref=e253]:
+          - img [ref=e255]
+          - generic [ref=e258]:
+            - paragraph [ref=e259]: 图片编辑
+            - paragraph [ref=e260]: 编辑 / 换背景 / 局部修改
+        - generic [ref=e261]:
+          - img [ref=e263]
+          - generic [ref=e267]:
+            - paragraph [ref=e268]: 时间轴
+            - paragraph [ref=e269]: 多轨道时间轴 — 计算剪切点 + 输出 cuts
+      - paragraph [ref=e271]: AI Video Workflow Studio v0.4
+    - generic [ref=e51]:
+      - generic [ref=e52]:
+        - generic [ref=e53]:
+          - button "点阵" [ref=e54] [cursor=pointer]:
+            - img [ref=e55]
+          - button "线格" [ref=e57] [cursor=pointer]:
+            - img [ref=e58]
+          - button "十字" [ref=e60] [cursor=pointer]:
+            - img [ref=e61]
+          - button "无" [ref=e64] [cursor=pointer]:
+            - img [ref=e65]
+        - generic [ref=e68]:
+          - generic [ref=e69]: 间距
+          - button "10" [ref=e70] [cursor=pointer]
+          - button "15" [ref=e71] [cursor=pointer]
+          - button "20" [ref=e72] [cursor=pointer]
+          - button "25" [ref=e73] [cursor=pointer]
+          - button "30" [ref=e74] [cursor=pointer]
+        - button "吸附开启" [ref=e75] [cursor=pointer]:
+          - img [ref=e76]
+        - generic [ref=e79]:
+          - button "缩小" [ref=e80] [cursor=pointer]:
+            - img [ref=e81]
+          - button "适应视图" [ref=e82] [cursor=pointer]:
+            - img [ref=e83]
+          - button "放大" [ref=e88] [cursor=pointer]:
+            - img [ref=e89]
+        - generic [ref=e90]:
+          - button "浅色主题" [ref=e91] [cursor=pointer]:
+            - img [ref=e92]
+          - button "深色主题" [ref=e98] [cursor=pointer]:
+            - img [ref=e99]
+          - button "跟随系统" [ref=e101] [cursor=pointer]:
+            - img [ref=e102]
+      - application [ref=e104]:
+        - generic [ref=e106]:
+          - generic:
+            - generic:
+              - group [ref=e272]:
+                - generic [ref=e273]:
+                  - generic [ref=e274]:
+                    - img [ref=e276]
+                    - generic [ref=e281]: "分镜: 决战"
+                    - generic [ref=e284]: 6格
+                  - generic [ref=e285]:
+                    - button "Connect upstream node" [ref=e286] [cursor=pointer]:
+                      - img [ref=e287]
+                    - button "Connect downstream node" [ref=e288] [cursor=pointer]:
+                      - img [ref=e289]
+                    - generic [ref=e292]:
+                      - img [ref=e297]
+                      - generic [ref=e302]:
+                        - textbox "镜头名（例：shot-3-revenge）" [ref=e303]: 决战
+                        - textbox "镜头描述：动作 / 环境 / 角色 / 镜头运动..." [ref=e304]: 主角与反派在天台对峙
+                      - generic [ref=e305]:
+                        - generic [ref=e306]:
+                          - button "多机位" [ref=e308] [cursor=pointer]:
+                            - img [ref=e309]
+                            - generic [ref=e312]: 多机位
+                            - img [ref=e313]
+                          - button "六宫格" [ref=e316] [cursor=pointer]:
+                            - img [ref=e317]
+                            - generic [ref=e319]: 六宫格
+                            - img [ref=e320]
+                          - button "黑色" [ref=e323] [cursor=pointer]:
+                            - img [ref=e324]
+                            - generic [ref=e330]: 黑色
+                            - img [ref=e331]
+                          - button "紧张" [ref=e334] [cursor=pointer]:
+                            - img [ref=e335]
+                            - generic [ref=e337]: 紧张
+                            - img [ref=e338]
+                        - button "Submit" [ref=e341] [cursor=pointer]:
+                          - img [ref=e342]
+              - group [ref=e344]:
+                - generic [ref=e345]:
+                  - generic [ref=e346]:
+                    - img [ref=e348]
+                    - generic [ref=e353]: "分镜: badtest"
+                    - generic [ref=e356]: 6格
+                  - generic [ref=e357]:
+                    - button "Connect upstream node" [ref=e358] [cursor=pointer]:
+                      - img [ref=e359]
+                    - button "Connect downstream node" [ref=e360] [cursor=pointer]:
+                      - img [ref=e361]
+                    - generic [ref=e364]:
+                      - img [ref=e369]
+                      - generic [ref=e374]:
+                        - textbox "镜头名（例：shot-3-revenge）" [ref=e375]: badtest
+                        - textbox "镜头描述：动作 / 环境 / 角色 / 镜头运动..." [ref=e376]: test
+                      - generic [ref=e377]:
+                        - generic [ref=e378]:
+                          - button "剧情推演" [ref=e380] [cursor=pointer]:
+                            - img [ref=e381]
+                            - generic [ref=e384]: 剧情推演
+                            - img [ref=e385]
+                          - button "六宫格" [ref=e388] [cursor=pointer]:
+                            - img [ref=e389]
+                            - generic [ref=e391]: 六宫格
+                            - img [ref=e392]
+                          - button "电影" [ref=e395] [cursor=pointer]:
+                            - img [ref=e396]
+                            - generic [ref=e402]: 电影
+                            - img [ref=e403]
+                          - button "戏剧" [ref=e406] [cursor=pointer]:
+                            - img [ref=e407]
+                            - generic [ref=e409]: 戏剧
+                            - img [ref=e410]
+                        - button "Submit" [ref=e413] [cursor=pointer]:
+                          - img [ref=e414]
+              - group [ref=e416]:
+                - generic [ref=e417]:
+                  - generic [ref=e418]:
+                    - img [ref=e420]
+                    - generic [ref=e425]: "分镜: matrix-time-progression-2x2"
+                    - generic [ref=e428]: 4格
+                  - generic [ref=e429]:
+                    - button "Connect upstream node" [ref=e430] [cursor=pointer]:
+                      - img [ref=e431]
+                    - button "Connect downstream node" [ref=e432] [cursor=pointer]:
+                      - img [ref=e433]
+                    - generic [ref=e436]:
+                      - img [ref=e441]
+                      - generic [ref=e446]:
+                        - textbox "镜头名（例：shot-3-revenge）" [ref=e447]: matrix-time-progression-2x2
+                        - textbox "镜头描述：动作 / 环境 / 角色 / 镜头运动..." [ref=e448]: matrix-test
+                      - generic [ref=e449]:
+                        - generic [ref=e450]:
+                          - button "剧情推演" [ref=e452] [cursor=pointer]:
+                            - img [ref=e453]
+                            - generic [ref=e456]: 剧情推演
+                            - img [ref=e457]
+                          - button "四宫格" [ref=e460] [cursor=pointer]:
+                            - img [ref=e461]
+                            - generic [ref=e463]: 四宫格
+                            - img [ref=e464]
+                          - button "电影" [ref=e467] [cursor=pointer]:
+                            - img [ref=e468]
+                            - generic [ref=e474]: 电影
+                            - img [ref=e475]
+                          - button "戏剧" [ref=e478] [cursor=pointer]:
+                            - img [ref=e479]
+                            - generic [ref=e481]: 戏剧
+                            - img [ref=e482]
+                        - button "Submit" [ref=e485] [cursor=pointer]:
+                          - img [ref=e486]
+              - group [ref=e488]:
+                - generic [ref=e489]:
+                  - generic [ref=e490]:
+                    - img [ref=e492]
+                    - generic [ref=e497]: "分镜: matrix-time-progression-2x3"
+                    - generic [ref=e500]: 6格
+                  - generic [ref=e501]:
+                    - button "Connect upstream node" [ref=e502] [cursor=pointer]:
+                      - img [ref=e503]
+                    - button "Connect downstream node" [ref=e504] [cursor=pointer]:
+                      - img [ref=e505]
+                    - generic [ref=e508]:
+                      - img [ref=e513]
+                      - generic [ref=e518]:
+                        - textbox "镜头名（例：shot-3-revenge）" [ref=e519]: matrix-time-progression-2x3
+                        - textbox "镜头描述：动作 / 环境 / 角色 / 镜头运动..." [ref=e520]: matrix-test
+                      - generic [ref=e521]:
+                        - generic [ref=e522]:
+                          - button "剧情推演" [ref=e524] [cursor=pointer]:
+                            - img [ref=e525]
+                            - generic [ref=e528]: 剧情推演
+                            - img [ref=e529]
+                          - button "六宫格" [ref=e532] [cursor=pointer]:
+                            - img [ref=e533]
+                            - generic [ref=e535]: 六宫格
+                            - img [ref=e536]
+                          - button "电影" [ref=e539] [cursor=pointer]:
+                            - img [ref=e540]
+                            - generic [ref=e546]: 电影
+                            - img [ref=e547]
+                          - button "戏剧" [ref=e550] [cursor=pointer]:
+                            - img [ref=e551]
+                            - generic [ref=e553]: 戏剧
+                            - img [ref=e554]
+                        - button "Submit" [ref=e557] [cursor=pointer]:
+                          - img [ref=e558]
+              - group [ref=e560]:
+                - generic [ref=e561]:
+                  - generic [ref=e562]:
+                    - img [ref=e564]
+                    - generic [ref=e569]: "分镜: matrix-time-progression-3x3"
+                    - generic [ref=e572]: 9格
+                  - generic [ref=e573]:
+                    - button "Connect upstream node" [ref=e574] [cursor=pointer]:
+                      - img [ref=e575]
+                    - button "Connect downstream node" [ref=e576] [cursor=pointer]:
+                      - img [ref=e577]
+                    - generic [ref=e580]:
+                      - img [ref=e585]
+                      - generic [ref=e590]:
+                        - textbox "镜头名（例：shot-3-revenge）" [ref=e591]: matrix-time-progression-3x3
+                        - textbox "镜头描述：动作 / 环境 / 角色 / 镜头运动..." [ref=e592]: matrix-test
+                      - generic [ref=e593]:
+                        - generic [ref=e594]:
+                          - button "剧情推演" [ref=e596] [cursor=pointer]:
+                            - img [ref=e597]
+                            - generic [ref=e600]: 剧情推演
+                            - img [ref=e601]
+                          - button "九宫格" [ref=e604] [cursor=pointer]:
+                            - img [ref=e605]
+                            - generic [ref=e607]: 九宫格
+                            - img [ref=e608]
+                          - button "电影" [ref=e611] [cursor=pointer]:
+                            - img [ref=e612]
+                            - generic [ref=e618]: 电影
+                            - img [ref=e619]
+                          - button "戏剧" [ref=e622] [cursor=pointer]:
+                            - img [ref=e623]
+                            - generic [ref=e625]: 戏剧
+                            - img [ref=e626]
+                        - button "Submit" [ref=e629] [cursor=pointer]:
+                          - img [ref=e630]
+              - group [ref=e632]:
+                - generic [ref=e633]:
+                  - generic [ref=e634]:
+                    - img [ref=e636]
+                    - generic [ref=e641]: "分镜: matrix-scene-evolution-2x2"
+                    - generic [ref=e644]: 4格
+                  - generic [ref=e645]:
+                    - button "Connect upstream node" [ref=e646] [cursor=pointer]:
+                      - img [ref=e647]
+                    - button "Connect downstream node" [ref=e648] [cursor=pointer]:
+                      - img [ref=e649]
+                    - generic [ref=e652]:
+                      - img [ref=e657]
+                      - generic [ref=e662]:
+                        - textbox "镜头名（例：shot-3-revenge）" [ref=e663]: matrix-scene-evolution-2x2
+                        - textbox "镜头描述：动作 / 环境 / 角色 / 镜头运动..." [ref=e664]: matrix-test
+                      - generic [ref=e665]:
+                        - generic [ref=e666]:
+                          - button "画面演进" [ref=e668] [cursor=pointer]:
+                            - img [ref=e669]
+                            - generic [ref=e672]: 画面演进
+                            - img [ref=e673]
+                          - button "四宫格" [ref=e676] [cursor=pointer]:
+                            - img [ref=e677]
+                            - generic [ref=e679]: 四宫格
+                            - img [ref=e680]
+                          - button "电影" [ref=e683] [cursor=pointer]:
+                            - img [ref=e684]
+                            - generic [ref=e690]: 电影
+                            - img [ref=e691]
+                          - button "戏剧" [ref=e694] [cursor=pointer]:
+                            - img [ref=e695]
+                            - generic [ref=e697]: 戏剧
+                            - img [ref=e698]
+                        - button "Submit" [ref=e701] [cursor=pointer]:
+                          - img [ref=e702]
+              - group [ref=e704]:
+                - generic [ref=e705]:
+                  - generic [ref=e706]:
+                    - img [ref=e708]
+                    - generic [ref=e713]: "分镜: matrix-scene-evolution-2x3"
+                    - generic [ref=e716]: 6格
+                  - generic [ref=e717]:
+                    - button "Connect upstream node" [ref=e718] [cursor=pointer]:
+                      - img [ref=e719]
+                    - button "Connect downstream node" [ref=e720] [cursor=pointer]:
+                      - img [ref=e721]
+                    - generic [ref=e724]:
+                      - img [ref=e729]
+                      - generic [ref=e734]:
+                        - textbox "镜头名（例：shot-3-revenge）" [ref=e735]: matrix-scene-evolution-2x3
+                        - textbox "镜头描述：动作 / 环境 / 角色 / 镜头运动..." [ref=e736]: matrix-test
+                      - generic [ref=e737]:
+                        - generic [ref=e738]:
+                          - button "画面演进" [ref=e740] [cursor=pointer]:
+                            - img [ref=e741]
+                            - generic [ref=e744]: 画面演进
+                            - img [ref=e745]
+                          - button "六宫格" [ref=e748] [cursor=pointer]:
+                            - img [ref=e749]
+                            - generic [ref=e751]: 六宫格
+                            - img [ref=e752]
+                          - button "电影" [ref=e755] [cursor=pointer]:
+                            - img [ref=e756]
+                            - generic [ref=e762]: 电影
+                            - img [ref=e763]
+                          - button "戏剧" [ref=e766] [cursor=pointer]:
+                            - img [ref=e767]
+                            - generic [ref=e769]: 戏剧
+                            - img [ref=e770]
+                        - button "Submit" [ref=e773] [cursor=pointer]:
+                          - img [ref=e774]
+              - group [ref=e776]:
+                - generic [ref=e777]:
+                  - generic [ref=e778]:
+                    - img [ref=e780]
+                    - generic [ref=e785]: "分镜: matrix-scene-evolution-3x3"
+                    - generic [ref=e788]: 9格
+                  - generic [ref=e789]:
+                    - button "Connect upstream node" [ref=e790] [cursor=pointer]:
+                      - img [ref=e791]
+                    - button "Connect downstream node" [ref=e792] [cursor=pointer]:
+                      - img [ref=e793]
+                    - generic [ref=e796]:
+                      - img [ref=e801]
+                      - generic [ref=e806]:
+                        - textbox "镜头名（例：shot-3-revenge）" [ref=e807]: matrix-scene-evolution-3x3
+                        - textbox "镜头描述：动作 / 环境 / 角色 / 镜头运动..." [ref=e808]: matrix-test
+                      - generic [ref=e809]:
+                        - generic [ref=e810]:
+                          - button "画面演进" [ref=e812] [cursor=pointer]:
+                            - img [ref=e813]
+                            - generic [ref=e816]: 画面演进
+                            - img [ref=e817]
+                          - button "九宫格" [ref=e820] [cursor=pointer]:
+                            - img [ref=e821]
+                            - generic [ref=e823]: 九宫格
+                            - img [ref=e824]
+                          - button "电影" [ref=e827] [cursor=pointer]:
+                            - img [ref=e828]
+                            - generic [ref=e834]: 电影
+                            - img [ref=e835]
+                          - button "戏剧" [ref=e838] [cursor=pointer]:
+                            - img [ref=e839]
+                            - generic [ref=e841]: 戏剧
+                            - img [ref=e842]
+                        - button "Submit" [ref=e845] [cursor=pointer]:
+                          - img [ref=e846]
+              - group [ref=e848]:
+                - generic [ref=e849]:
+                  - generic [ref=e850]:
+                    - img [ref=e852]
+                    - generic [ref=e857]: "分镜: matrix-action-breakdown-2x2"
+                    - generic [ref=e860]: 4格
+                  - generic [ref=e861]:
+                    - button "Connect upstream node" [ref=e862] [cursor=pointer]:
+                      - img [ref=e863]
+                    - button "Connect downstream node" [ref=e864] [cursor=pointer]:
+                      - img [ref=e865]
+                    - generic [ref=e868]:
+                      - img [ref=e873]
+                      - generic [ref=e878]:
+                        - textbox "镜头名（例：shot-3-revenge）" [ref=e879]: matrix-action-breakdown-2x2
+                        - textbox "镜头描述：动作 / 环境 / 角色 / 镜头运动..." [ref=e880]: matrix-test
+                      - generic [ref=e881]:
+                        - generic [ref=e882]:
+                          - button "动作分解" [ref=e884] [cursor=pointer]:
+                            - img [ref=e885]
+                            - generic [ref=e888]: 动作分解
+                            - img [ref=e889]
+                          - button "四宫格" [ref=e892] [cursor=pointer]:
+                            - img [ref=e893]
+                            - generic [ref=e895]: 四宫格
+                            - img [ref=e896]
+                          - button "电影" [ref=e899] [cursor=pointer]:
+                            - img [ref=e900]
+                            - generic [ref=e906]: 电影
+                            - img [ref=e907]
+                          - button "戏剧" [ref=e910] [cursor=pointer]:
+                            - img [ref=e911]
+                            - generic [ref=e913]: 戏剧
+                            - img [ref=e914]
+                        - button "Submit" [ref=e917] [cursor=pointer]:
+                          - img [ref=e918]
+              - group [ref=e920]:
+                - generic [ref=e921]:
+                  - generic [ref=e922]:
+                    - img [ref=e924]
+                    - generic [ref=e929]: "分镜: matrix-action-breakdown-2x3"
+                    - generic [ref=e932]: 6格
+                  - generic [ref=e933]:
+                    - button "Connect upstream node" [ref=e934] [cursor=pointer]:
+                      - img [ref=e935]
+                    - button "Connect downstream node" [ref=e936] [cursor=pointer]:
+                      - img [ref=e937]
+                    - generic [ref=e940]:
+                      - img [ref=e945]
+                      - generic [ref=e950]:
+                        - textbox "镜头名（例：shot-3-revenge）" [ref=e951]: matrix-action-breakdown-2x3
+                        - textbox "镜头描述：动作 / 环境 / 角色 / 镜头运动..." [ref=e952]: matrix-test
+                      - generic [ref=e953]:
+                        - generic [ref=e954]:
+                          - button "动作分解" [ref=e956] [cursor=pointer]:
+                            - img [ref=e957]
+                            - generic [ref=e960]: 动作分解
+                            - img [ref=e961]
+                          - button "六宫格" [ref=e964] [cursor=pointer]:
+                            - img [ref=e965]
+                            - generic [ref=e967]: 六宫格
+                            - img [ref=e968]
+                          - button "电影" [ref=e971] [cursor=pointer]:
+                            - img [ref=e972]
+                            - generic [ref=e978]: 电影
+                            - img [ref=e979]
+                          - button "戏剧" [ref=e982] [cursor=pointer]:
+                            - img [ref=e983]
+                            - generic [ref=e985]: 戏剧
+                            - img [ref=e986]
+                        - button "Submit" [ref=e989] [cursor=pointer]:
+                          - img [ref=e990]
+              - group [ref=e992]:
+                - generic [ref=e993]:
+                  - generic [ref=e994]:
+                    - img [ref=e996]
+                    - generic [ref=e1001]: "分镜: matrix-action-breakdown-3x3"
+                    - generic [ref=e1004]: 9格
+                  - generic [ref=e1005]:
+                    - button "Connect upstream node" [ref=e1006] [cursor=pointer]:
+                      - img [ref=e1007]
+                    - button "Connect downstream node" [ref=e1008] [cursor=pointer]:
+                      - img [ref=e1009]
+                    - generic [ref=e1012]:
+                      - img [ref=e1017]
+                      - generic [ref=e1022]:
+                        - textbox "镜头名（例：shot-3-revenge）" [ref=e1023]: matrix-action-breakdown-3x3
+                        - textbox "镜头描述：动作 / 环境 / 角色 / 镜头运动..." [ref=e1024]: matrix-test
+                      - generic [ref=e1025]:
+                        - generic [ref=e1026]:
+                          - button "动作分解" [ref=e1028] [cursor=pointer]:
+                            - img [ref=e1029]
+                            - generic [ref=e1032]: 动作分解
+                            - img [ref=e1033]
+                          - button "九宫格" [ref=e1036] [cursor=pointer]:
+                            - img [ref=e1037]
+                            - generic [ref=e1039]: 九宫格
+                            - img [ref=e1040]
+                          - button "电影" [ref=e1043] [cursor=pointer]:
+                            - img [ref=e1044]
+                            - generic [ref=e1050]: 电影
+                            - img [ref=e1051]
+                          - button "戏剧" [ref=e1054] [cursor=pointer]:
+                            - img [ref=e1055]
+                            - generic [ref=e1057]: 戏剧
+                            - img [ref=e1058]
+                        - button "Submit" [ref=e1061] [cursor=pointer]:
+                          - img [ref=e1062]
+              - group [ref=e1064]:
+                - generic [ref=e1065]:
+                  - generic [ref=e1066]:
+                    - img [ref=e1068]
+                    - generic [ref=e1073]: "分镜: matrix-multi-camera-2x2"
+                    - generic [ref=e1076]: 4格
+                  - generic [ref=e1077]:
+                    - button "Connect upstream node" [ref=e1078] [cursor=pointer]:
+                      - img [ref=e1079]
+                    - button "Connect downstream node" [ref=e1080] [cursor=pointer]:
+                      - img [ref=e1081]
+                    - generic [ref=e1084]:
+                      - img [ref=e1089]
+                      - generic [ref=e1094]:
+                        - textbox "镜头名（例：shot-3-revenge）" [ref=e1095]: matrix-multi-camera-2x2
+                        - textbox "镜头描述：动作 / 环境 / 角色 / 镜头运动..." [ref=e1096]: matrix-test
+                      - generic [ref=e1097]:
+                        - generic [ref=e1098]:
+                          - button "多机位" [ref=e1100] [cursor=pointer]:
+                            - img [ref=e1101]
+                            - generic [ref=e1104]: 多机位
+                            - img [ref=e1105]
+                          - button "四宫格" [ref=e1108] [cursor=pointer]:
+                            - img [ref=e1109]
+                            - generic [ref=e1111]: 四宫格
+                            - img [ref=e1112]
+                          - button "电影" [ref=e1115] [cursor=pointer]:
+                            - img [ref=e1116]
+                            - generic [ref=e1122]: 电影
+                            - img [ref=e1123]
+                          - button "戏剧" [ref=e1126] [cursor=pointer]:
+                            - img [ref=e1127]
+                            - generic [ref=e1129]: 戏剧
+                            - img [ref=e1130]
+                        - button "Submit" [ref=e1133] [cursor=pointer]:
+                          - img [ref=e1134]
+              - group [ref=e1136]:
+                - generic [ref=e1137]:
+                  - generic [ref=e1138]:
+                    - img [ref=e1140]
+                    - generic [ref=e1145]: "分镜: matrix-multi-camera-2x3"
+                    - generic [ref=e1148]: 6格
+                  - generic [ref=e1149]:
+                    - button "Connect upstream node" [ref=e1150] [cursor=pointer]:
+                      - img [ref=e1151]
+                    - button "Connect downstream node" [ref=e1152] [cursor=pointer]:
+                      - img [ref=e1153]
+                    - generic [ref=e1156]:
+                      - img [ref=e1161]
+                      - generic [ref=e1166]:
+                        - textbox "镜头名（例：shot-3-revenge）" [ref=e1167]: matrix-multi-camera-2x3
+                        - textbox "镜头描述：动作 / 环境 / 角色 / 镜头运动..." [ref=e1168]: matrix-test
+                      - generic [ref=e1169]:
+                        - generic [ref=e1170]:
+                          - button "多机位" [ref=e1172] [cursor=pointer]:
+                            - img [ref=e1173]
+                            - generic [ref=e1176]: 多机位
+                            - img [ref=e1177]
+                          - button "六宫格" [ref=e1180] [cursor=pointer]:
+                            - img [ref=e1181]
+                            - generic [ref=e1183]: 六宫格
+                            - img [ref=e1184]
+                          - button "电影" [ref=e1187] [cursor=pointer]:
+                            - img [ref=e1188]
+                            - generic [ref=e1194]: 电影
+                            - img [ref=e1195]
+                          - button "戏剧" [ref=e1198] [cursor=pointer]:
+                            - img [ref=e1199]
+                            - generic [ref=e1201]: 戏剧
+                            - img [ref=e1202]
+                        - button "Submit" [ref=e1205] [cursor=pointer]:
+                          - img [ref=e1206]
+              - group [ref=e1208]:
+                - generic [ref=e1209]:
+                  - generic [ref=e1210]:
+                    - img [ref=e1212]
+                    - generic [ref=e1217]: "分镜: matrix-multi-camera-3x3"
+                    - generic [ref=e1220]: 9格
+                  - generic [ref=e1221]:
+                    - button "Connect upstream node" [ref=e1222] [cursor=pointer]:
+                      - img [ref=e1223]
+                    - button "Connect downstream node" [ref=e1224] [cursor=pointer]:
+                      - img [ref=e1225]
+                    - generic [ref=e1228]:
+                      - img [ref=e1233]
+                      - generic [ref=e1238]:
+                        - textbox "镜头名（例：shot-3-revenge）" [ref=e1239]: matrix-multi-camera-3x3
+                        - textbox "镜头描述：动作 / 环境 / 角色 / 镜头运动..." [ref=e1240]: matrix-test
+                      - generic [ref=e1241]:
+                        - generic [ref=e1242]:
+                          - button "多机位" [ref=e1244] [cursor=pointer]:
+                            - img [ref=e1245]
+                            - generic [ref=e1248]: 多机位
+                            - img [ref=e1249]
+                          - button "九宫格" [ref=e1252] [cursor=pointer]:
+                            - img [ref=e1253]
+                            - generic [ref=e1255]: 九宫格
+                            - img [ref=e1256]
+                          - button "电影" [ref=e1259] [cursor=pointer]:
+                            - img [ref=e1260]
+                            - generic [ref=e1266]: 电影
+                            - img [ref=e1267]
+                          - button "戏剧" [ref=e1270] [cursor=pointer]:
+                            - img [ref=e1271]
+                            - generic [ref=e1273]: 戏剧
+                            - img [ref=e1274]
+                        - button "Submit" [ref=e1277] [cursor=pointer]:
+                          - img [ref=e1278]
+        - img
+        - generic "Control Panel" [ref=e107]:
+          - button "Zoom In" [ref=e108] [cursor=pointer]:
+            - img [ref=e109]
+          - button "Zoom Out" [disabled]:
+            - img
+          - button "Fit View" [active] [ref=e114] [cursor=pointer]:
+            - img [ref=e115]
+          - button "Toggle Interactivity" [ref=e117] [cursor=pointer]:
+            - img [ref=e118]
+        - img "Mini Map" [ref=e121]

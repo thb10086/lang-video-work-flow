@@ -138,14 +138,14 @@ ${formulaBlock}
 | 任务 | 工具 |
 |-----|------|
 | 新建视频节点 | \`create_video_node\`（model/prompt/size/duration） |
-| 关联首帧图片 | \`connect_nodes\`（imageGen → videoGen, first-frame） |
-| 切换模型 | \`update_node\`（修改 model 字段） |
-| 修改运镜描述 | \`update_node\`（修改 prompt 字段） |
+| 关联首帧图片 | \`canvas.connect\`（imageGen → videoGen, first-frame） |
+| 切换模型 | \`canvas.update_node\`（修改 model 字段） |
+| 修改运镜描述 | \`canvas.update_node\`（修改 prompt 字段） |
 | 自动优化提示词 | \`optimize_prompt\` 按五段式自动升级 |
 | 批量审查提示词 | \`review_content\`(reviewAll=true) 全画布审查 |
-| 开启有声视频 | \`update_node\`（generate_audio: true，Seedance 专用） |
-| 设置连续生成 | \`update_node\`（return_last_frame: true，Seedance 专用） |
-| 固定镜头模式 | \`update_node\`（camera_fixed: true，Seedance 专用） |
+| 开启有声视频 | \`canvas.update_node\`（generate_audio: true，Seedance 专用） |
+| 设置连续生成 | \`canvas.update_node\`（return_last_frame: true，Seedance 专用） |
+| 固定镜头模式 | \`canvas.update_node\`（camera_fixed: true，Seedance 专用） |
 | 查看视频结果 | \`get_node_output\` 检查 outputVideo/taskId/progress |
 
 ---

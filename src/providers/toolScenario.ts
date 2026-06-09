@@ -28,9 +28,9 @@ const SCENARIO_DEFS: ScenarioDef[] = [
       '漫剧', '漫画', '动漫', '二次元', 'anime', '番剧', '连载',
       '角色', 'Q版', '卡通', '热血', '校园', '后宫', '轻小说', '同人',
     ],
-    pipeline: '角色九宫图(多角色) → imageCrop → 分镜脚本 → 关键帧(角色参考直连) → 视频 → 合成',
+    pipeline: '角色九宫图(多角色) → 角色管理器 → 分镜脚本 → 关键帧(角色参考直连) → 视频 → 合成',
     templateId: 'comic-drama-basic',
-    tips: '重点: 角色一致性。建议先生成角色九宫图并裁切，确保每个镜头都连接角色参考。风格推荐 anime/cartoon。',
+    tips: '重点: 角色一致性。先生成角色九宫图并统一登记到"角色管理器"，镜头 prompt 中用 @角色名 引用。风格推荐 anime/cartoon。',
   },
   {
     id: 'product_ad',

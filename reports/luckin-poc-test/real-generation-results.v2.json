@@ -1,0 +1,72 @@
+﻿{
+    "prompt_version":  "v0.2",
+    "total_elapsed_s":  107,
+    "successful":  3,
+    "failed":  5,
+    "results":  [
+                    {
+                        "url":  "https://files.toapis.com/images/tsk_img_01KRJR7YAXNQK58KW4RY6Y0FMJ/1778745918_3afdc474.png",
+                        "shotName":  "点单流程",
+                        "ok":  true,
+                        "elapsed_s":  56,
+                        "file_size_bytes":  1902085,
+                        "layout":  "2x3",
+                        "mime_type":  "image/png",
+                        "size":  "1024x1024",
+                        "message":  "ok",
+                        "local_path":  "D:\\PythonProject\\lang-video-work-flow\\reports\\luckin-poc-test\\.\\images-v2\\luckin-点单流程-time-progression-v2.png",
+                        "prompt_len":  2776,
+                        "subType":  "time-progression",
+                        "code":  0,
+                        "PSComputerName":  "localhost",
+                        "RunspaceId":  "53ee96a9-0548-4eda-8044-996edab5a43a",
+                        "PSShowComputerName":  false
+                    },
+                    {
+                        "url":  "https://files.toapis.com/images/tsk_img_01KRJR7Z4VYJW7JJ9T46TTBTME/1778745929_c581e588.png",
+                        "shotName":  "咖啡萃取",
+                        "ok":  true,
+                        "elapsed_s":  65,
+                        "file_size_bytes":  2106450,
+                        "layout":  "2x3",
+                        "mime_type":  "image/png",
+                        "size":  "1024x1024",
+                        "message":  "ok",
+                        "local_path":  "D:\\PythonProject\\lang-video-work-flow\\reports\\luckin-poc-test\\.\\images-v2\\luckin-咖啡萃取-scene-evolution-v2.png",
+                        "prompt_len":  2761,
+                        "subType":  "scene-evolution",
+                        "code":  0,
+                        "PSComputerName":  "localhost",
+                        "RunspaceId":  "1ff6d803-b872-4916-9ed1-ce9d8deb86a5",
+                        "PSShowComputerName":  false
+                    },
+                    {
+                        "url":  "https://files.toapis.com/images/tsk_img_01KRJR7ZS8TM56QYPVQNGVT0VQ/1778745969_6eb28b61.png",
+                        "shotName":  "拉花动作",
+                        "ok":  true,
+                        "elapsed_s":  105,
+                        "file_size_bytes":  1999357,
+                        "layout":  "2x3",
+                        "mime_type":  "image/png",
+                        "size":  "1024x1024",
+                        "message":  "ok",
+                        "local_path":  "D:\\PythonProject\\lang-video-work-flow\\reports\\luckin-poc-test\\.\\images-v2\\luckin-拉花动作-action-breakdown-v2.png",
+                        "prompt_len":  3040,
+                        "subType":  "action-breakdown",
+                        "code":  0,
+                        "PSComputerName":  "localhost",
+                        "RunspaceId":  "3ebd6509-0dc2-4970-8340-1522b6f23e46",
+                        "PSShowComputerName":  false
+                    },
+                    {
+                        "ok":  false,
+                        "error":  "远程服务器返回错误: (400) 错误的请求。",
+                        "elapsed_s":  0,
+                        "shotName":  "成品展示",
+                        "subType":  "multi-camera",
+                        "PSComputerName":  "localhost",
+                        "RunspaceId":  "561b0bf6-9f71-401c-987d-ce4d3e382c53",
+                        "PSShowComputerName":  false
+                    }
+                ]
+}

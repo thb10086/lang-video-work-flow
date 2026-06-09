@@ -7,10 +7,14 @@ API 层测试（通过 TestClient）已在 test_models_api / test_channels_api �
   - DB 层: 模型查询、渠道查询、映射关系
   - Redis 层: 任务 CRUD
   - COS: ready 属性
-"""
 
+Count 断言从 seed 动态计算。
+"""
+from app.db.seed import MODELS_SEED, MAPPINGS_SEED, CHANNELS_SEED
 from app.services.cos_service import cos_service
 from app.services.task_service import TASK_KEY_PREFIX
+
+_VIDEO_SEED = [m for m in MODELS_SEED if m["capability"] == "video"]
 
 
 class TestModelServiceViaDB:
@@ -19,12 +23,12 @@ class TestModelServiceViaDB:
     def test_list_all(self, db_sync):
         cur = db_sync.cursor()
         cur.execute("SELECT COUNT(*) as cnt FROM ai_models WHERE deleted_at IS NULL AND is_enabled = 1")
-        assert cur.fetchone()["cnt"] == 15
+        assert cur.fetchone()["cnt"] == len(MODELS_SEED)
 
     def test_list_by_capability(self, db_sync):
         cur = db_sync.cursor()
         cur.execute("SELECT COUNT(*) as cnt FROM ai_models WHERE capability = 'video' AND deleted_at IS NULL AND is_enabled = 1")
-        assert cur.fetchone()["cnt"] == 6
+        assert cur.fetchone()["cnt"] == len(_VIDEO_SEED)
 
     def test_get_model(self, db_sync):
         cur = db_sync.cursor()
@@ -45,14 +49,15 @@ class TestChannelServiceViaDB:
     def test_list_channels(self, db_sync):
         cur = db_sync.cursor()
         cur.execute("SELECT COUNT(*) as cnt FROM ai_channels WHERE deleted_at IS NULL AND is_enabled = 1")
-        assert cur.fetchone()["cnt"] == 4
+        assert cur.fetchone()["cnt"] == len(CHANNELS_SEED)
 
     def test_get_channel(self, db_sync):
+        # apimart 在 2026-05 toapis 接入后被重命名为 toapis
         cur = db_sync.cursor()
-        cur.execute("SELECT * FROM ai_channels WHERE channel_id = 'apimart'")
+        cur.execute("SELECT * FROM ai_channels WHERE channel_id = 'toapis'")
         ch = cur.fetchone()
         assert ch is not None
-        assert ch["adapter_type"] == "apimart"
+        assert ch["adapter_type"] == "toapis"
 
     def test_channels_for_image_model(self, db_sync):
         cur = db_sync.cursor()
@@ -69,21 +74,29 @@ class TestChannelServiceViaDB:
         assert rows[0]["channel_id"] == "yunwu"
 
     def test_channels_for_video_multiroute(self, db_sync):
-        """veo3.1-fast: apimart(p=0) + puyo(p=10)"""
+        """验证某个视频模型仍保有多渠道路由能力（具体路由定义看 MAPPINGS_SEED）。"""
+        # 在 seed 中找一个拥有 >= 2 个 channel mapping 的 video model
+        from collections import Counter
+        video_ids = {m["model_id"] for m in _VIDEO_SEED}
+        counts = Counter(mid for mid, _, _, _ in MAPPINGS_SEED if mid in video_ids)
+        multi_route = [mid for mid, n in counts.items() if n >= 2]
+        assert multi_route, "至少一个视频模型应保有多渠道冗余"
+        target = multi_route[0]
+        expected = sorted({ch for mid, ch, _, _ in MAPPINGS_SEED if mid == target})
         cur = db_sync.cursor()
         cur.execute("""
             SELECT c.channel_id, cm.priority
             FROM channel_model_mappings cm
             JOIN ai_models m ON cm.model_id = m.id
             JOIN ai_channels c ON cm.channel_id = c.id
-            WHERE m.model_id = 'veo3.1-fast'
+            WHERE m.model_id = %s
             ORDER BY cm.priority
-        """)
+        """, (target,))
         rows = cur.fetchall()
-        assert len(rows) == 2
-        assert rows[0]["channel_id"] == "apimart"
-        assert rows[1]["channel_id"] == "puyo"
-        assert rows[0]["priority"] < rows[1]["priority"]
+        actual = sorted({r["channel_id"] for r in rows})
+        assert actual == expected, f"{target}: DB {actual} != seed {expected}"
+        priorities = [r["priority"] for r in rows]
+        assert priorities == sorted(priorities)
 
 
 class TestTaskServiceViaRedis:

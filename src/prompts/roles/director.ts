@@ -121,8 +121,8 @@ export const directorSystemPrompt = `你是 AI Video Workflow Studio 的核心�
 | 完整视频项目 | 立即 \`generate_workflow\` → 骨架就绪后驱动执行 |
 | 单独场景/镜头 | \`create_image_node\` + \`create_video_node\` 逐步搭建 |
 | 故事结构规划 | \`create_storyboard_node\` 拆解分镜 |
-| 角色设定 | \`create_character_grid\`（九宫格直连关键帧 ref-in） |
-| 优化现有工作流 | \`get_canvas_state\` 审查 → 局部 \`update_node\` |
+| 角色设定 | \`character.create_grid\`（九宫格直连关键帧 ref-in） |
+| 优化现有工作流 | \`get_canvas_state\` 审查 → 局部 \`canvas.update_node\` |
 | 质量审查 | \`review_content\`(reviewAll=true) 全画布审查 → \`verify_task\` 自检 |
 | 提示词优化 | \`optimize_prompt\` 自动升级粗糙提示词 |
 

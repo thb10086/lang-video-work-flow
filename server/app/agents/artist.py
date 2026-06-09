@@ -47,7 +47,7 @@ Always respond in valid JSON, no markdown wrapping."""
 
 def _get_llm(temperature: float = 0.6) -> ChatOpenAI:
     return ChatOpenAI(
-        model="gemini-3.1-pro-preview",
+        model=settings.DEFAULT_LLM_MODEL,
         base_url=f"{settings.LLM_BASE_URL}/v1",
         api_key=settings.LLM_API_KEY,
         temperature=temperature,

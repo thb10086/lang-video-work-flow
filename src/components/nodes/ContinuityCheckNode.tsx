@@ -1,10 +1,24 @@
+/**
+ * ContinuityCheckNode — LibTV-style visual continuity checker.
+ *
+ * Takes two adjacent-shot images (image-a, image-b) and runs an LLM
+ * analysis to check character / lighting / colour / scene / perspective
+ * consistency. Results are rendered as a traffic-light list.
+ */
 import { memo, useCallback } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { ScanEye, Play, Loader2, CheckCircle2, AlertTriangle, AlertCircle } from 'lucide-react'
+import {
+  ScanEye, AlertTriangle, CheckCircle2, XCircle, Image as ImageIcon,
+} from 'lucide-react'
+
 import { useFlowStore } from '@/store/flowStore'
 import { backendApi } from '@/api/backend'
 import { useSettingsStore } from '@/store/settingsStore'
 import { TASK_TOKEN_BUDGETS } from '@/providers/modelDefaults'
+
+import {
+  NodeShell, NodeToolbar, SubmitButton,
+} from '@/components/nodes/_shell'
 
 interface CheckResult {
   aspect: string
@@ -12,7 +26,7 @@ interface CheckResult {
   detail: string
 }
 
-function ContinuityCheckNode({ id, data, selected }: NodeProps) {
+function ContinuityCheckNode({ id, data }: NodeProps) {
   const status = String(data.status || 'idle')
   const label = String(data.label || '连续性检查')
   const imageA = data.imageA as string | null
@@ -78,124 +92,106 @@ ${!imgA || !imgB ? '注意：只有一张图片，请基于单张图片评估其
     }
   }, [id, data.imageA, data.imageB, status, updateNodeData])
 
+  const isChecking = status === 'checking'
   const passCount = results.filter(r => r.status === 'pass').length
   const warnCount = results.filter(r => r.status === 'warning').length
   const failCount = results.filter(r => r.status === 'fail').length
+  const nodes = useFlowStore(s => s.nodes)
 
-  const borderClass = status === 'checking'
-    ? 'border-yellow-400 shadow-yellow-200/50 animate-pulse'
-    : status === 'done' && failCount === 0
-    ? 'border-green-500 shadow-green-200/50'
-    : status === 'done' && failCount > 0
-    ? 'border-red-500 shadow-red-200/50'
-    : status === 'error'
-    ? 'border-red-500 shadow-red-200/50'
-    : selected
-    ? 'border-teal-500 shadow-teal-200'
-    : 'border-border'
+  const handleGhostConnect = useCallback((side: 'left' | 'right') => {
+    const self = nodes.find(n => n.id === id)
+    if (!self) return
+    const offset = side === 'left' ? -340 : 340
+    const position = { x: (self.position?.x ?? 0) + offset, y: self.position?.y ?? 0 }
+    window.dispatchEvent(new CustomEvent('libtv-ghost-connect', {
+      detail: { sourceNodeId: id, side, position },
+    }))
+  }, [nodes, id])
+
+  const statusIcon = (s: CheckResult['status']) =>
+    s === 'pass'    ? <CheckCircle2 size={11} className="text-[hsl(var(--success))]" /> :
+    s === 'warning' ? <AlertTriangle size={11} className="text-amber-400" /> :
+                      <XCircle size={11} className="text-[hsl(var(--destructive))]" />
+
+  const labelRightSlot = (
+    <div className="flex items-center gap-1">
+      {results.length > 0 && (
+        <>
+          {passCount > 0 && <span className="text-[9px] text-[hsl(var(--success))]">{passCount}✓</span>}
+          {warnCount > 0 && <span className="text-[9px] text-amber-400">{warnCount}⚠</span>}
+          {failCount > 0 && <span className="text-[9px] text-[hsl(var(--destructive))]">{failCount}✗</span>}
+        </>
+      )}
+      {status === 'error' && <AlertTriangle size={11} className="text-[hsl(var(--destructive))]" />}
+    </div>
+  )
 
   return (
-    <div className={`workflow-node bg-card border-2 rounded-xl shadow-lg w-[280px] transition-all duration-300 ${borderClass}`}>
-      <Handle type="target" position={Position.Left} id="image-a" className="!w-3 !h-3 !bg-blue-500" style={{ top: '35%' }} />
-      <Handle type="target" position={Position.Left} id="image-b" className="!w-3 !h-3 !bg-blue-500" style={{ top: '65%' }} />
+    <NodeShell
+      icon={<ScanEye size={11} strokeWidth={2.5} />}
+      label={label}
+      labelRight={labelRightSlot}
+      width={380}
+      executing={isChecking}
+      ghostConnect={{ left: true, right: true }}
+      onGhostConnect={handleGhostConnect}
+    >
+      <Handle type="target" position={Position.Left} id="image-a" style={{ top: '35%' }} />
+      <Handle type="target" position={Position.Left} id="image-b" style={{ top: '65%' }} />
+      <Handle type="source" position={Position.Right} id="report-out" />
 
-      {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 bg-teal-500/10 rounded-t-xl border-b border-border">
-        <ScanEye className="w-4 h-4 text-teal-500" />
-        <span className="font-semibold text-sm">{label}</span>
-        {status === 'done' && failCount === 0 && <CheckCircle2 className="w-3.5 h-3.5 text-green-500 ml-auto" />}
-        {status === 'done' && failCount > 0 && <AlertCircle className="w-3.5 h-3.5 text-red-500 ml-auto" />}
-      </div>
-
-      {/* Content */}
-      <div className="p-3 space-y-2">
-        {/* Image Previews */}
+      <div className="p-3 space-y-2.5">
+        {/* ── SIDE-BY-SIDE IMAGE PREVIEW ── */}
         <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-0.5">
-            <span className="text-[9px] text-muted-foreground">镜头 A</span>
-            <div className="h-16 rounded border border-border overflow-hidden bg-muted/30 flex items-center justify-center">
-              {imageA ? (
-                <img src={imageA} alt="A" className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-[9px] text-muted-foreground">未连接</span>
-              )}
+          {[{ img: imageA, tag: '镜头 A' }, { img: imageB, tag: '镜头 B' }].map(({ img, tag }) => (
+            <div key={tag} className="space-y-0.5">
+              <span className="text-[9px] text-[hsl(var(--libtv-muted))]">{tag}</span>
+              <div className="libtv-preview aspect-video flex items-center justify-center">
+                {img ? (
+                  <img src={img} alt={tag} className="absolute inset-0 w-full h-full object-cover" />
+                ) : (
+                  <ImageIcon size={18} className="text-[hsl(var(--libtv-muted)/0.4)]" />
+                )}
+              </div>
             </div>
-          </div>
-          <div className="space-y-0.5">
-            <span className="text-[9px] text-muted-foreground">镜头 B</span>
-            <div className="h-16 rounded border border-border overflow-hidden bg-muted/30 flex items-center justify-center">
-              {imageB ? (
-                <img src={imageB} alt="B" className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-[9px] text-muted-foreground">未连接</span>
-              )}
-            </div>
-          </div>
+          ))}
         </div>
 
-        {/* Error */}
-        {errorMsg && (
-          <div className="text-[10px] text-red-500 bg-red-50 rounded px-2 py-1 break-all">{errorMsg}</div>
-        )}
-
-        {/* Results */}
+        {/* ── RESULTS LIST ── */}
         {results.length > 0 && (
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-[10px]">
-              {passCount > 0 && <span className="text-green-600">{passCount} 通过</span>}
-              {warnCount > 0 && <span className="text-yellow-600">{warnCount} 警告</span>}
-              {failCount > 0 && <span className="text-red-600">{failCount} 不一致</span>}
-            </div>
-            <div className="space-y-1 max-h-[150px] overflow-y-auto">
+          <div className="rounded-xl border border-[hsl(var(--libtv-line))] bg-[hsl(var(--libtv-chip-bg)/0.4)] overflow-hidden">
+            <div className="max-h-[180px] overflow-y-auto divide-y divide-[hsl(var(--libtv-line))]">
               {results.map((r, i) => (
-                <div
-                  key={i}
-                  className={`rounded p-1.5 text-[10px] flex items-start gap-1.5 ${
-                    r.status === 'pass' ? 'bg-green-50' :
-                    r.status === 'warning' ? 'bg-yellow-50' : 'bg-red-50'
-                  }`}
-                >
-                  {r.status === 'pass' ? (
-                    <CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" />
-                  ) : r.status === 'warning' ? (
-                    <AlertTriangle className="w-3 h-3 text-yellow-500 flex-shrink-0 mt-0.5" />
-                  ) : (
-                    <AlertCircle className="w-3 h-3 text-red-500 flex-shrink-0 mt-0.5" />
-                  )}
-                  <div>
-                    <span className="font-medium">{r.aspect}</span>
-                    <p className="text-muted-foreground">{r.detail}</p>
+                <div key={i} className="px-2.5 py-1.5 flex items-start gap-2 hover:bg-[hsl(var(--libtv-chip-bg-hover)/0.5)] transition-colors">
+                  <span className="mt-0.5 shrink-0">{statusIcon(r.status)}</span>
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-medium text-[hsl(var(--foreground))]">{r.aspect}</span>
+                    <p className="text-[10px] text-[hsl(var(--libtv-muted))] line-clamp-2">{r.detail}</p>
                   </div>
                 </div>
               ))}
             </div>
           </div>
         )}
-      </div>
 
-      {/* Footer */}
-      <div className="px-4 py-2 border-t border-border">
-        <button
-          onClick={handleCheck}
-          disabled={(!imageA && !imageB) || status === 'checking'}
-          className={`w-full py-1.5 rounded-md text-xs font-medium flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-            status === 'checking'
-              ? 'bg-yellow-100 text-yellow-700'
-              : status === 'done'
-              ? 'bg-teal-500 text-white hover:bg-teal-600'
-              : 'bg-teal-500 text-white hover:bg-teal-600'
-          }`}
-        >
-          {status === 'checking' ? (
-            <><Loader2 className="w-3 h-3 animate-spin" /> 检查中...</>
-          ) : (
-            <><ScanEye className="w-3 h-3" /> {status === 'done' ? '重新检查' : '检查连续性'}</>
-          )}
-        </button>
-      </div>
+        {/* ── TOOLBAR ── */}
+        <NodeToolbar
+          right={
+            <SubmitButton
+              onClick={handleCheck}
+              disabled={(!imageA && !imageB) || isChecking}
+              loading={isChecking}
+            />
+          }
+        />
 
-      <Handle type="source" position={Position.Right} id="report-out" className="!w-3 !h-3 !bg-amber-500" />
-    </div>
+        {errorMsg && (
+          <div className="text-[10px] text-[hsl(var(--destructive))] bg-[hsl(var(--destructive)/0.08)] border border-[hsl(var(--destructive)/0.2)] rounded-lg px-2 py-1.5 break-all">
+            {errorMsg}
+          </div>
+        )}
+      </div>
+    </NodeShell>
   )
 }
 

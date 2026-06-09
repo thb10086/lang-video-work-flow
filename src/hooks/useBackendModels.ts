@@ -14,6 +14,28 @@ import { backendApi, type AiModelResponse } from '@/api/backend'
 
 const modelCache: Map<string, AiModelResponse[]> = new Map()
 
+// In-flight request dedup: when N components mount simultaneously and the
+// cache is still cold, the cache check + write is async — without dedup, all
+// N components fire their own GET /api/models?capability=X request before
+// the first response lands. On a fresh template import (e.g. 10 nodes) that
+// produced ~25 redundant fetches in QA testing. We stash the in-flight
+// promise per cache-key so all callers await the same fetch, then drop the
+// entry when settled (success or fail) so retries can re-issue.
+const inflightCache: Map<string, Promise<AiModelResponse[]>> = new Map()
+
+function fetchModelsDeduped(capability: string | undefined, key: string): Promise<AiModelResponse[]> {
+  const existing = inflightCache.get(key)
+  if (existing) return existing
+  const promise = backendApi.listModels(capability).then(res => res.items)
+  inflightCache.set(key, promise)
+  promise.finally(() => {
+    // Always drop the in-flight entry once settled so a future retry() / cold
+    // re-mount can fire a fresh request when the user wants one.
+    inflightCache.delete(key)
+  })
+  return promise
+}
+
 export function useBackendModels(capability?: string): {
   models: AiModelResponse[]
   loading: boolean
@@ -36,10 +58,10 @@ export function useBackendModels(capability?: string): {
 
     setLoading(true)
     setError(null)
-    backendApi.listModels(capability)
-      .then(res => {
-        modelCache.set(key, res.items)
-        setModels(res.items)
+    fetchModelsDeduped(capability, key)
+      .then(items => {
+        modelCache.set(key, items)
+        setModels(items)
       })
       .catch(err => {
         console.warn('[useBackendModels] fetch failed:', err)
@@ -51,6 +73,7 @@ export function useBackendModels(capability?: string): {
   const retry = useCallback(() => {
     const key = capability || '__all__'
     modelCache.delete(key)
+    inflightCache.delete(key)
     setRefetchKey(k => k + 1)
   }, [capability])
 
@@ -60,4 +83,5 @@ export function useBackendModels(capability?: string): {
 /** Invalidate cache (call after model CRUD) */
 export function invalidateModelCache(): void {
   modelCache.clear()
+  inflightCache.clear()
 }

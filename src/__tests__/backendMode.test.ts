@@ -212,6 +212,21 @@ describe('Dual-mode executors — BACKEND=true', () => {
 
   it('videoGen with BACKEND=true calls backendApi.submitVideo', async () => {
     mockPost.mockResolvedValue({ task_id: 'backend-task-001', status: 'pending' })
+    // executeVideoGen calls listModels (GET /api/models) before submit, then
+    // queryTask (GET /api/tasks/{id}) during awaited polling. Route by path
+    // so both calls get the right shape.
+    mockGet.mockImplementation((path: string) => {
+      if (path.startsWith('/api/tasks/')) {
+        return Promise.resolve({
+          task_id: 'backend-task-001',
+          status: 'completed',
+          progress: 100,
+          output_url: 'https://cos.example.com/backend-test.mp4',
+        })
+      }
+      // listModels and any other GET — empty list is fine
+      return Promise.resolve({ items: [], total: 0 })
+    })
 
     injectNode('vg1', 'videoGen', {
       prompt: 'Ocean sunset',
@@ -229,6 +244,11 @@ describe('Dual-mode executors — BACKEND=true', () => {
         prompt: expect.stringContaining('Ocean sunset'),
       }),
     )
+    expect(mockGet).toHaveBeenCalledWith('/api/tasks/backend-task-001')
+
+    const node = useFlowStore.getState().nodes.find(n => n.id === 'vg1')!
+    expect(node.data.status).toBe('done')
+    expect(node.data.outputVideo).toBe('https://cos.example.com/backend-test.mp4')
   })
 
   it('characterGrid with BACKEND=true calls backendApi.generateImage', async () => {

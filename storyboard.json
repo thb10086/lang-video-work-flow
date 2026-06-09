@@ -1,0 +1,30 @@
+﻿[
+  {
+    "shot_id": "shot_01",
+    "description_zh": "æå¤æµ·è¾¹ï¼å¹´è¿æ¸å¤«ç¬èªæç½ç¼è¡",
+    "prompt_en": "An elderly fisherman walking slowly along a moonlit beach, dragging a fishing net, silver moonlight on calm sea, wide cinematic shot, soft night atmosphere, photorealistic",
+    "duration_s": 5,
+    "camera": "è¿æ¯ç¼æ¢è·é"
+  },
+  {
+    "shot_id": "shot_02",
+    "description_zh": "æ²æ»©ä¸ä¸åªç»çç¶æ£åæåèå",
+    "prompt_en": "A transparent glass bottle half-buried in wet sand, emitting soft glowing blue light, moonlit shore background, close-up shot, mysterious magical mood, photorealistic",
+    "duration_s": 4,
+    "camera": "ä½è§åº¦ç¹åæ¨è¿"
+  },
+  {
+    "shot_id": "shot_03",
+    "description_zh": "æ¸å¤«è¹²ä¸æ§èµ·ååç»çç¶åè§",
+    "prompt_en": "Old weathered fisherman crouching, holding a glowing glass bottle in both hands, warm blue light reflecting on his wrinkled face, night beach, medium shot, cinematic",
+    "duration_s": 5,
+    "camera": "è¿è©ä¸­æ¯"
+  },
+  {
+    "shot_id": "shot_04",
+    "description_zh": "ç¶å£æ¶åºåé¾ï¼å°ç²¾çµç¿©ç¶ç°èº«",
+    "prompt_en": "A tiny luminous fairy emerging from the mouth of a glowing glass bottle, swirling magical mist and sparkles, amazed fisherman's face in background, night seaside, fantasy cinematic",
+    "duration_s": 6,
+    "camera": "ç¹åä»°æç¯ç»"
+  }
+]

@@ -1,0 +1,16 @@
+﻿=== Shot: 鍜栧暋钀冨彇 | subType: scene-evolution | layout: 2x3 | 6 panels ===
+
+Storyboard sheet for shot "鍜栧暋钀冨彇", displayed as a single composite image with 6 panels arranged in a 2x3 grid layout. Thin light-gray dividing lines separate each panel. Each panel is numbered top-left to bottom-right.
+
+SHOT: Espresso machine extracting fresh shot into glass 鈥?from empty glass, to first golden drops, dark espresso filling halfway, crema forming on top, glass nearly full, condensation on glass surface. Brass-fitted machine, warm cinematic backlight.
+STYLE: cinematic
+MOOD: dramatic
+
+PANEL LAYOUT 鈥?SCENE EVOLUTION:
+Each panel shows the SAME scene transitioning through stages of physical/atmospheric/emotional change (e.g. clear鈫抯torm, day鈫抧ight, calm鈫抍haotic, before鈫抋fter). Read panels as the world evolving while the camera stays still.
+CONSISTENCY RULES:
+- Identical architecture, spatial layout, and key landmarks across panels
+- Foreground / midground / background elements preserve their geometry
+- Only weather / lighting / state / atmosphere changes between panels
+- If characters appear, their identity remains consistent
+TECHNICAL: Cinematic composition per panel, professional color grading, consistent character identity / outfit / proportions across all panels, no text or numbers overlaid on the image, no watermarks. Output a single high-resolution composite image.

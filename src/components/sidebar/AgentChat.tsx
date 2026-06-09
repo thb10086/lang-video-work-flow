@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type KeyboardEvent } from 'react'
+import { useState, useRef, useEffect, useCallback, type KeyboardEvent } from 'react'
 import {
   Send, Bot, UserIcon, Loader2, Trash2, ChevronDown, ChevronRight,
   Clapperboard, PenLine, Palette, Camera, Check, X, Brain,
@@ -11,6 +11,9 @@ import { useChatStore, type ChatMessage, type AgentStats } from '@/store/chatSto
 import { useAgentMemoryStore } from '@/store/agentMemoryStore'
 import { ALL_ROLES } from '@/prompts/roles'
 import { useBackendModels } from '@/hooks/useBackendModels'
+import { useFlowStore } from '@/store/flowStore'
+import { useSettingsStore } from '@/store/settingsStore'
+import ProgressTimeline from '@/components/sidebar/ProgressTimeline'
 
 // ── Lucide icon resolver for role icons ──
 function RoleIcon({ iconId, className }: { iconId: string; className?: string }) {
@@ -25,9 +28,56 @@ function RoleIcon({ iconId, className }: { iconId: string; className?: string })
 }
 
 // ── Tool name → Chinese label mapping ──
+//
+// Phase 3.2 makes `<noun>.<verb>` the canonical form for every backend
+// tool. The legacy snake_case names remain accepted as aliases until
+// Phase 4 cleanup, so this dict carries both forms (canonical + legacy)
+// and they share the same Chinese label. Lookup is `TOOL_LABELS[name]
+// || name` — when an unknown name appears (e.g. a frontend-only tool
+// not yet migrated, or a brand-new tool the user just added), the raw
+// name is shown so the chat UI never goes blank.
 const TOOL_LABELS: Record<string, string> = {
+  // ── Canonical (`<noun>.<verb>`) names registered by the backend
+  //    (server/app/agents/tool_registry.py) — preferred going forward.
+  // canvas.*
+  'canvas.add_node': '创建节点',
+  'canvas.update_node': '更新节点',
+  'canvas.delete_node': '删除节点',
+  'canvas.connect': '连接节点',
+  'canvas.highlight': '高亮节点',
+  'canvas.undo': '撤销',
+  // character.*
+  'character.create_grid': '创建角色',
+  'character.create_extract': '创建角色提取',
+  'character.create_registry': '创建角色管理器',
+  // images.* / ui.* / timeline.*
+  'images.collect_user_uploads': '注入用户图片',
+  'images.upload_to_cos': '上传图片',
+  'ui.show_diff': '展示差异',
+  'timeline.create': '创建时间轴',
+  // memory.*
+  'memory.save': '保存记忆',
+  'memory.recall': '检索记忆',
+  'memory.forget': '删除记忆',
+  // model.* / phase.* / plan.*
+  'model.list': '查询模型',
+  'model.get_params': '获取模型参数',
+  'phase.set': '切换阶段',
+  'plan.create': '制定计划',
+  'plan.update_step': '更新进度',
+  // agent.* — subagent delegation (Tier 3 surface)
+  'agent.delegate': '委派子代理',
+  'agent.parallel_delegate': '并行委派',
+  // asset.* — admin/internal only; here for completeness in the rare
+  // event the call is logged in chat (e.g. via dev-tools / test runs).
+  'asset.update_identity': '更新身份特征',
+
+  // ── Legacy snake_case aliases — share labels with their canonical
+  //    counterparts. Kept until Phase 4 alias retirement (4.2.x).
   generate_workflow: '生成工作流',
-  create_character_grid: '创建角色',
+  create_character_grid: '创建角色',           // ↳ character.create_grid
+  create_character_extract_node: '创建角色提取', // ↳ character.create_extract
+  create_character_manager_node: '创建角色管理器', // ↳ character.create_registry
   create_scene_grid: '创建场景',
   create_image_node: '创建图片节点',
   create_video_node: '创建视频节点',
@@ -38,23 +88,28 @@ const TOOL_LABELS: Record<string, string> = {
   create_image_edit_node: '创建图片编辑',
   create_video_stitch_node: '创建视频拼接',
   create_continuity_check_node: '创建连续性检查',
+  create_timeline: '创建时间轴',                // ↳ timeline.create
+  create_timeline_node: '创建时间轴',           // ↳ timeline.create (older form)
   create_llm_node: '创建LLM节点',
-  connect_nodes: '连接节点',
-  update_node: '更新节点',
-  delete_node: '删除节点',
+  connect_nodes: '连接节点',                    // ↳ canvas.connect
+  update_node: '更新节点',                      // ↳ canvas.update_node
+  delete_node: '删除节点',                      // ↳ canvas.delete_node
   execute_node: '执行节点',
   batch_execute: '串行批量执行',
   parallel_execute: '并行执行',
-  plan_task: '制定计划',
-  update_plan_step: '更新进度',
+  plan_task: '制定计划',                        // ↳ plan.create
+  update_plan_step: '更新进度',                 // ↳ plan.update_step
   verify_task: '验证任务',
-  save_memory: '保存记忆',
-  recall_memory: '检索记忆',
+  save_memory: '保存记忆',                      // ↳ memory.save
+  recall_memory: '检索记忆',                    // ↳ memory.recall
+  forget_memory: '删除记忆',                    // ↳ memory.forget
   retry_node: '重试节点',
-  list_models: '查询模型',
+  list_models: '查询模型',                      // ↳ model.list
+  get_model_params: '获取模型参数',             // ↳ model.get_params
+  set_phase: '切换阶段',                        // ↳ phase.set
   get_node_output: '检查节点结果',
   get_canvas_state: '获取画布状态',
-  inject_user_images: '注入用户图片',
+  inject_user_images: '注入用户图片',           // ↳ images.collect_user_uploads
   review_content: '质量审查',
   optimize_prompt: '优化提示词',
   detect_scenario: '场景识别',
@@ -305,13 +360,18 @@ function AgentChat() {
   const [showRoleMenu, setShowRoleMenu] = useState(false)
   const [showModelMenu, setShowModelMenu] = useState(false)
   const [isDragOver, setIsDragOver] = useState(false)
+  const [flashedMessageId, setFlashedMessageId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
+  const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const fileInputRef = useRef<HTMLInputElement>(null)
   const {
     messages, isProcessing, activeRole, chatModel, streamingMessageId,
     agentStats, processUserMessage, clearMessages, setActiveRole, setChatModel,
     cancelProcessing,
   } = useChatStore()
+  const setHighlight = useFlowStore((s) => s.setHighlight)
+  const useBackendRuntime = useSettingsStore((s) => s.useBackendRuntime)
   const currentRole = ALL_ROLES.find(r => r.id === activeRole) || ALL_ROLES[0]
   const { models: backendLLMModels } = useBackendModels('text')
   const llmModels = backendLLMModels.map(m => ({ id: m.model_id, name: m.name }))
@@ -319,6 +379,35 @@ function AgentChat() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  // Hover binding: highlight referenced canvas nodes (D-9).
+  const handleMessageHover = useCallback((msg: ChatMessage) => {
+    if (msg.nodeRefs && msg.nodeRefs.length > 0) {
+      setHighlight(msg.nodeRefs)
+    }
+  }, [setHighlight])
+  const handleMessageLeave = useCallback(() => {
+    setHighlight(null)
+  }, [setHighlight])
+
+  // Anchor: scroll to the earliest message referencing a given node when the
+  // user Ctrl+Clicks on the canvas.
+  useEffect(() => {
+    const handler = (ev: Event) => {
+      const detail = (ev as CustomEvent<{ nodeId: string }>).detail
+      if (!detail?.nodeId) return
+      const msg = messages.find((m) => m.nodeRefs?.includes(detail.nodeId))
+      if (!msg) return
+      const el = messageRefs.current.get(msg.id)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        setFlashedMessageId(msg.id)
+        window.setTimeout(() => setFlashedMessageId(null), 800)
+      }
+    }
+    window.addEventListener('agent:anchor-to-node', handler)
+    return () => window.removeEventListener('agent:anchor-to-node', handler)
   }, [messages])
 
   const handleImageFiles = async (files: FileList | File[]) => {
@@ -487,8 +576,11 @@ function AgentChat() {
       {/* Live stats bar during execution */}
       {isProcessing && agentStats && <LiveStatsBar stats={agentStats} />}
 
+      {/* Progress timeline (backend-runtime sessions only) */}
+      {useBackendRuntime && <ProgressTimeline />}
+
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-3">
         {messages.map((msg: ChatMessage) => {
           const isStreaming = msg.id === streamingMessageId
           const isThinking = isStreaming && msg.thinking
@@ -521,8 +613,20 @@ function AgentChat() {
             )
           }
 
+          const isFlashed = flashedMessageId === msg.id
           return (
-            <div key={msg.id} className="flex gap-2.5">
+            <div
+              key={msg.id}
+              ref={(el) => {
+                if (el) messageRefs.current.set(msg.id, el)
+                else messageRefs.current.delete(msg.id)
+              }}
+              className={`flex gap-2.5 transition-colors rounded-lg ${
+                isFlashed ? 'bg-primary/10 -mx-2 px-2' : ''
+              }`}
+              onMouseEnter={() => handleMessageHover(msg)}
+              onMouseLeave={handleMessageLeave}
+            >
               <div className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-colors ${
                 isStreaming ? 'bg-primary/10' : 'bg-muted'
               }`}>

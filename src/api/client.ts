@@ -44,7 +44,11 @@ async function request<T>(
     let msg = res.statusText
     try {
       const body = await res.json()
-      msg = body.message || body.detail || msg
+      const detail = body.detail
+      // FastAPI detail 可能是对象（如 ParamValidationError），需要 stringify
+      msg = body.message
+        || (typeof detail === 'string' ? detail : detail ? JSON.stringify(detail) : null)
+        || msg
     } catch { /* ignore parse error */ }
     throw new ApiError(res.status, -1, msg)
   }
@@ -75,7 +79,10 @@ async function rawPost<T = Record<string, unknown>>(
     let msg = res.statusText
     try {
       const body = await res.json()
-      msg = body.detail || body.message || msg
+      const detail = body.detail
+      msg = body.message
+        || (typeof detail === 'string' ? detail : detail ? JSON.stringify(detail) : null)
+        || msg
     } catch { /* ignore */ }
     throw new ApiError(res.status, -1, msg)
   }

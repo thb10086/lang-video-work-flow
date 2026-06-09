@@ -10,7 +10,7 @@ import { memo, useCallback, useMemo, useRef } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import {
   Image as ImageIcon, Upload, X, AlertTriangle, Loader2,
-  ChevronDown, Palette, Tag, Camera, Mountain, Sparkles, HardDrive,
+  ChevronDown, Palette, Aperture, Maximize2, Sparkles, HardDrive, UserCircle,
 } from 'lucide-react'
 
 import { useFlowStore } from '@/store/flowStore'
@@ -21,13 +21,18 @@ import { useBackendModels } from '@/hooks/useBackendModels'
 import { useSlashMenu } from '@/hooks/useSlashMenu'
 import SlashMenu, { type SlashCommand } from '@/components/canvas/SlashMenu'
 import { sanitizeForExecute, sanitizeOnModelSwitch } from '@/providers/paramSanitizer'
+import { resolvePromptRefs } from '@/providers/assetReferenceResolver'
+import { resolveCharacterNames } from '@/providers/characterNameResolver'
+import { useAssetStore } from '@/store/assetStore'
+import { togglePromptKeyword, replacePromptKeyword } from '@/components/nodes/_shell/promptKeywords'
 import PromptInput from '@/components/ui/PromptInput'
 
 import {
-  NodeShell, PreviewArea, ModeTabs, ActionChips, NodeToolbar, SubmitButton,
+  NodeShell, PreviewArea, ModeTabs, NodeToolbar, SubmitButton,
   ParamPopover, AspectRatioPicker, SegmentedPicker,
-  DEFAULT_IMAGE_RATIOS,
-  type ModeTabItem, type ActionChipItem,
+  StylePicker, CameraPicker, ShotPicker, CharacterPicker,
+  DEFAULT_IMAGE_RATIOS, DEFAULT_STYLE_PRESETS, CAMERA_MOVEMENTS, CAMERA_ANGLES, DEFAULT_SHOTS,
+  type ModeTabItem, type StylePreset, type CameraPreset, type ShotPreset, type CharacterRef,
 } from '@/components/nodes/_shell'
 
 // ── Types ──
@@ -208,9 +213,40 @@ function ImageGenNode({ id, data }: NodeProps) {
     updateNodeData(id, { status: 'generating', errorMsg: null, outputImage: null })
 
     try {
+      // Resolve @asset_id + @角色名 tokens (same flow as VideoGenNode + executors)
+      const assetStore = useAssetStore.getState()
+      const flowNodes = useFlowStore.getState().nodes
+      const refList = Array.isArray(data.assetRefs) ? (data.assetRefs as string[]) : []
+      const resolved = resolvePromptRefs(currentPrompt, assetStore, refList)
+      const nameResolved = resolveCharacterNames(resolved.expandedPrompt, flowNodes)
+      const mergedUnresolved = [...resolved.unresolved, ...nameResolved.unresolved]
+
+      // Aggregate reference images from all sources (de-dup by prefix)
       const refImages: string[] = []
       const currentRef = data.referenceImage as string | null
       if (currentRef) refImages.push(currentRef)
+      const multiRefs = data.referenceImages as string[] | null
+      if (multiRefs?.length) {
+        for (const r of multiRefs) {
+          if (r && !refImages.includes(r)) refImages.push(r)
+        }
+      }
+      for (const img of resolved.referenceImages) {
+        if (img && !refImages.includes(img)) refImages.push(img)
+      }
+      for (const img of nameResolved.referenceImages) {
+        if (img && !refImages.includes(img)) refImages.push(img)
+      }
+      // character-in edge payload (populated by nodeExecutor.propagateNodeOutput)
+      const charImg = (data.characterImage || data.characterUrl) as string | null
+      if (charImg && !refImages.includes(charImg)) refImages.push(charImg)
+
+      updateNodeData(id, {
+        unresolvedRefs: mergedUnresolved.length > 0 ? mergedUnresolved : undefined,
+      })
+      if (mergedUnresolved.length > 0) {
+        console.warn('[ImageGenNode] unresolved tokens:', mergedUnresolved)
+      }
 
       const bm = backendImageModels.find(m => m.model_id === currentModel)
       const schema = (bm?.param_schema?.length ? bm.param_schema : []) as ParamField[]
@@ -218,7 +254,7 @@ function ImageGenNode({ id, data }: NodeProps) {
 
       const res = await backendApi.generateImage({
         model_id: currentModel,
-        prompt: currentPrompt,
+        prompt: nameResolved.expandedPrompt,
         reference_images: refImages.length > 0 ? refImages : undefined,
         params,
       })
@@ -236,13 +272,40 @@ function ImageGenNode({ id, data }: NodeProps) {
     }
   }, [id, data, status, updateNodeData, backendImageModels])
 
-  // ── Action chips (quick accessors under the mode tabs) ──
-  const actionChips: ActionChipItem[] = useMemo(() => ([
-    { key: 'style',    icon: Palette,    label: '风格' },
-    { key: 'tag',      icon: Tag,        label: '标记' },
-    { key: 'camera',   icon: Camera,     label: '摄像机' },
-    { key: 'panorama', icon: Mountain,   label: '全景' },
-  ]), [])
+  // ── Prompt-keyword-driven picker state ──
+  const activeStyleIds = useMemo(
+    () => DEFAULT_STYLE_PRESETS.filter(p => prompt.toLowerCase().includes(p.keyword.toLowerCase())).map(p => p.id),
+    [prompt],
+  )
+  const activeCameraIds = useMemo(() => {
+    const all = [...CAMERA_MOVEMENTS, ...CAMERA_ANGLES]
+    return all.filter(p => prompt.toLowerCase().includes(p.keyword.toLowerCase())).map(p => p.id)
+  }, [prompt])
+  const activeShotId = useMemo(() => {
+    const match = DEFAULT_SHOTS.find(s => prompt.toLowerCase().includes(s.keyword.toLowerCase()))
+    return match?.id || ''
+  }, [prompt])
+
+  const handleStylePick = useCallback((preset: StylePreset) => {
+    updateNodeData(id, { prompt: togglePromptKeyword(prompt, preset.keyword) })
+  }, [id, prompt, updateNodeData])
+
+  const handleCameraPick = useCallback((preset: CameraPreset) => {
+    updateNodeData(id, { prompt: togglePromptKeyword(prompt, preset.keyword) })
+  }, [id, prompt, updateNodeData])
+
+  const handleShotPick = useCallback((preset: ShotPreset) => {
+    const allShotKeywords = DEFAULT_SHOTS.map(s => s.keyword)
+    const current = activeShotId === preset.id ? '' : preset.keyword
+    updateNodeData(id, { prompt: replacePromptKeyword(prompt, allShotKeywords, current) })
+  }, [id, prompt, activeShotId, updateNodeData])
+
+  const handleCharacterPick = useCallback((character: CharacterRef) => {
+    const token = `@${character.name}`
+    if (prompt.includes(token)) return
+    const next = prompt.trim() ? `${prompt.trim()} ${token}` : token
+    updateNodeData(id, { prompt: next })
+  }, [id, prompt, updateNodeData])
 
   const emptySuggestions = useMemo(() => ([
     {
@@ -305,6 +368,7 @@ function ImageGenNode({ id, data }: NodeProps) {
       labelRight={labelRightSlot}
       width={460}
       executing={isGenerating}
+      status={status}
       ghostConnect={{ left: true, right: true }}
       onGhostConnect={handleGhostConnect}
     >
@@ -318,7 +382,7 @@ function ImageGenNode({ id, data }: NodeProps) {
         {/* ── 1. PREVIEW ── */}
         <PreviewArea
           aspect={previewAspect}
-          placeholderIcon={Mountain}
+          placeholderIcon={ImageIcon}
           suggestions={displayImage || referenceImage ? undefined : emptySuggestions}
           loading={isGenerating && !displayImage}
         >
@@ -367,19 +431,97 @@ function ImageGenNode({ id, data }: NodeProps) {
         {/* ── 2. INPUT ── */}
         <div className="space-y-2">
           <ModeTabs tabs={MODE_TABS} value={mode} onChange={handleModeChange} />
-          <ActionChips
-            actions={[
-              ...actionChips,
-              {
-                key: 'upload',
-                icon: Upload,
-                label: referenceImage ? '更换参考图' : '上传参考图',
-                variant: 'ghost',
-                onClick: () => fileInputRef.current?.click(),
-                active: !!referenceImage,
-              },
-            ]}
-          />
+
+          {/* Quick-action chips — each opens a LibTV-style picker popover. */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <ParamPopover
+              align="start" placement="top" width={320}
+              trigger={({ toggle, open }) => (
+                <button
+                  type="button"
+                  onClick={toggle}
+                  className={`libtv-chip nodrag relative ${activeStyleIds.length > 0 ? 'libtv-chip--active' : ''} ${open ? 'ring-1 ring-[hsl(var(--libtv-accent)/0.5)]' : ''}`}
+                >
+                  <Palette size={12} strokeWidth={1.75} />
+                  <span>风格</span>
+                  {activeStyleIds.length > 0 && (
+                    <span className="ml-0.5 min-w-[14px] h-[14px] px-1 rounded-full bg-[hsl(var(--libtv-accent))] text-white text-[9px] font-bold flex items-center justify-center">
+                      {activeStyleIds.length}
+                    </span>
+                  )}
+                </button>
+              )}
+            >
+              <StylePicker activeIds={activeStyleIds} onPick={handleStylePick} />
+            </ParamPopover>
+
+            <ParamPopover
+              align="start" placement="top" width={340}
+              trigger={({ toggle, open }) => (
+                <button
+                  type="button"
+                  onClick={toggle}
+                  className={`libtv-chip nodrag relative ${activeCameraIds.length > 0 ? 'libtv-chip--active' : ''} ${open ? 'ring-1 ring-[hsl(var(--libtv-accent)/0.5)]' : ''}`}
+                >
+                  <Aperture size={12} strokeWidth={1.75} />
+                  <span>摄像机</span>
+                  {activeCameraIds.length > 0 && (
+                    <span className="ml-0.5 min-w-[14px] h-[14px] px-1 rounded-full bg-[hsl(var(--libtv-accent))] text-white text-[9px] font-bold flex items-center justify-center">
+                      {activeCameraIds.length}
+                    </span>
+                  )}
+                </button>
+              )}
+            >
+              <CameraPicker activeIds={activeCameraIds} onPick={handleCameraPick} />
+            </ParamPopover>
+
+            <ParamPopover
+              align="start" placement="top" width={320}
+              trigger={({ toggle, open }) => {
+                const active = DEFAULT_SHOTS.find(s => s.id === activeShotId)
+                return (
+                  <button
+                    type="button"
+                    onClick={toggle}
+                    className={`libtv-chip nodrag ${active ? 'libtv-chip--active' : ''} ${open ? 'ring-1 ring-[hsl(var(--libtv-accent)/0.5)]' : ''}`}
+                  >
+                    <Maximize2 size={12} strokeWidth={1.75} />
+                    <span>{active ? active.label : '景别'}</span>
+                  </button>
+                )
+              }}
+            >
+              <ShotPicker value={activeShotId} onChange={handleShotPick} />
+            </ParamPopover>
+
+            <ParamPopover
+              align="start" placement="top" width={300}
+              trigger={({ toggle, open }) => (
+                <button
+                  type="button"
+                  onClick={toggle}
+                  className={`libtv-chip nodrag ${open ? 'ring-1 ring-[hsl(var(--libtv-accent)/0.5)]' : ''}`}
+                >
+                  <UserCircle size={12} strokeWidth={1.75} />
+                  <span>角色库</span>
+                  <ChevronDown size={11} strokeWidth={2} className="opacity-60" />
+                </button>
+              )}
+            >
+              <CharacterPicker onPick={handleCharacterPick} />
+            </ParamPopover>
+
+            {/* Upload chip — kept alongside pickers for quick reference image upload */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className={`libtv-chip nodrag libtv-chip--ghost ${referenceImage ? 'libtv-chip--active' : ''}`}
+            >
+              <Upload size={12} strokeWidth={1.75} />
+              <span>{referenceImage ? '更换参考图' : '上传参考图'}</span>
+            </button>
+          </div>
 
           <div className="relative">
             <PromptInput

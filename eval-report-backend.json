@@ -1,0 +1,56 @@
+{
+  "generatedAt": "2026-04-28T01:07:41.782Z",
+  "scenarios": [
+    {
+      "id": "03-character-fix",
+      "name": "Update Character Appearance",
+      "passed": true,
+      "score": 100,
+      "toolCallCount": 2,
+      "tokensUsed": 58,
+      "toolResponseTokens": 47,
+      "elapsedMs": 5,
+      "timeToFirstEventMs": 4,
+      "timeToFirstToolCallMs": 4,
+      "meanEventIntervalMs": 1,
+      "issues": [],
+      "overBudget": {
+        "toolCalls": false,
+        "tokens": false,
+        "elapsed": false
+      },
+      "toolLog": [
+        {
+          "tool": "get_canvas_state",
+          "args": {},
+          "success": true,
+          "message": "{\"nodeCount\":1,\"edgeCount\":0,\"nodes\":[{\"id\":\"char_linxia\",\"type\":\"characterGrid\",\"status\":\"success\",\"label\":\"角色: 林夏\"}],\"edges\":[]}",
+          "roundIndex": 0,
+          "elapsedMs": 0
+        },
+        {
+          "tool": "update_node",
+          "args": {
+            "nodeId": "char_linxia",
+            "updates": {
+              "description": "Lin Xia: young Asian woman, platinum white shoulder-length hair, sharp eyes, black leather jacket, cyberpunk aesthetic"
+            }
+          },
+          "success": true,
+          "message": "已更新节点「角色: 林夏」的字段: description",
+          "roundIndex": 1,
+          "elapsedMs": 1
+        }
+      ]
+    }
+  ],
+  "pathway": "backend",
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "averageScore": 100,
+    "totalTokens": 58,
+    "totalElapsedMs": 5
+  }
+}

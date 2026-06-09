@@ -6,6 +6,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from app.config import settings
+
 
 # ── Image Generation ──
 
@@ -56,7 +58,7 @@ class TaskStatusResponse(BaseModel):
 # ── LLM Chat ──
 
 class LLMChatRequest(BaseModel):
-    model_id: str = Field(default="gemini-3.1-pro-preview", description="LLM 模型标识")
+    model_id: str = Field(default=settings.DEFAULT_LLM_MODEL, description="LLM 模型标识")
     prompt: str
     system_prompt: str | None = None
     temperature: float = 0.7

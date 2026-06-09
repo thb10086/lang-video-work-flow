@@ -68,7 +68,7 @@ export default function AspectRatioPicker({
             key={r.value}
             type="button"
             onClick={() => onChange(r.value)}
-            className={`libtv-ratio-cell ${value === r.value ? 'libtv-ratio-cell--active' : ''}`}
+            className={`libtv-ratio-cell nodrag ${value === r.value ? 'libtv-ratio-cell--active' : ''}`}
             aria-pressed={value === r.value}
           >
             <span

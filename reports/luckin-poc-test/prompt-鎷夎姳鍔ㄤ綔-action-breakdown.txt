@@ -1,0 +1,16 @@
+﻿=== Shot: 鎷夎姳鍔ㄤ綔 | subType: action-breakdown | layout: 2x3 | 6 panels ===
+
+Storyboard sheet for shot "鎷夎姳鍔ㄤ綔", displayed as a single composite image with 6 panels arranged in a 2x3 grid layout. Thin light-gray dividing lines separate each panel. Each panel is numbered top-left to bottom-right.
+
+SHOT: Barista performing latte art on iced americano milk top 鈥?pouring stream descending, milk hitting surface, swirling pattern emerging, leaf shape forming, finishing flick, completed art. Hands and pitcher visible, natural light.
+STYLE: realistic
+MOOD: peaceful
+
+PANEL LAYOUT 鈥?ACTION BREAKDOWN:
+Break a single complex action (turn, jump, swing, dance step, transformation) into sequential motion phases. Each panel is one key pose along the motion arc 鈥?like a frame-by-frame animation reference. Use slight motion-blur on limbs/cloth where appropriate to suggest movement direction.
+CONSISTENCY RULES:
+- Same character identity, outfit, and body proportions in every panel
+- Same camera angle and framing throughout the action
+- Background remains identical; only character pose changes
+- The N panels together must read as a smooth continuous motion
+TECHNICAL: Cinematic composition per panel, professional color grading, consistent character identity / outfit / proportions across all panels, no text or numbers overlaid on the image, no watermarks. Output a single high-resolution composite image.

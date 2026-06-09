@@ -13,8 +13,10 @@ import {
 } from 'lucide-react'
 
 import { useFlowStore } from '@/store/flowStore'
+import { DEFAULT_AUDIO_MODEL } from '@/providers/modelDefaults'
 import { useBackendModels } from '@/hooks/useBackendModels'
 import { sanitizeOnModelSwitch } from '@/providers/paramSanitizer'
+import { executeNode } from '@/providers/nodeExecutor'
 import type { ParamField } from '@/providers/types'
 
 import {
@@ -26,7 +28,7 @@ function AudioNode({ id, data }: NodeProps) {
   const audioModels = useMemo(() => {
     return backendAudioModels.map(m => ({ id: m.model_id, name: m.name }))
   }, [backendAudioModels])
-  const modelId = String(data.model || 'elevenlabs')
+  const modelId = String(data.model || DEFAULT_AUDIO_MODEL)
   const status = data.status as string
   const voice = String(data.voice || 'default')
   const text = String(data.text || '')
@@ -58,6 +60,15 @@ function AudioNode({ id, data }: NodeProps) {
   }, [id, updateNodeData])
 
   const isGenerating = status === 'generating'
+
+  // Dispatch to executor so the SubmitButton actually does something. The
+  // audioNode executor currently marks status='pending' (TTS adapter not wired
+  // yet), but at least the user gets feedback instead of a dead button.
+  const handleGenerate = useCallback(async () => {
+    if (isGenerating) return
+    if (!String(data.text || '').trim()) return
+    await executeNode(id)
+  }, [id, data.text, isGenerating])
   const label = (data.label as string) || '音频生成'
   const audioUrl = (data.outputAudioUrl || data.outputAudio) as string | undefined
   const errorMsg = data.errorMsg ? String(data.errorMsg) : null
@@ -188,7 +199,7 @@ function AudioNode({ id, data }: NodeProps) {
           }
           right={
             <SubmitButton
-              onClick={() => { /* execution wired via runtime engine */ }}
+              onClick={handleGenerate}
               disabled={!text.trim() || isGenerating}
               loading={isGenerating}
             />

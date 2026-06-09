@@ -40,3 +40,15 @@ export type { SegmentedPickerProps, SegmentOption } from './pickers/SegmentedPic
 
 export { default as DurationSlider } from './pickers/DurationSlider'
 export type { DurationSliderProps } from './pickers/DurationSlider'
+
+export { default as StylePicker, DEFAULT_STYLE_PRESETS } from './pickers/StylePicker'
+export type { StylePickerProps, StylePreset } from './pickers/StylePicker'
+
+export { default as CameraPicker, CAMERA_MOVEMENTS, CAMERA_ANGLES } from './pickers/CameraPicker'
+export type { CameraPickerProps, CameraPreset, CameraCategory } from './pickers/CameraPicker'
+
+export { default as ShotPicker, DEFAULT_SHOTS } from './pickers/ShotPicker'
+export type { ShotPickerProps, ShotPreset } from './pickers/ShotPicker'
+
+export { default as CharacterPicker } from './pickers/CharacterPicker'
+export type { CharacterPickerProps, CharacterRef } from './pickers/CharacterPicker'

@@ -10,12 +10,21 @@
  */
 
 import type { AiModelResponse } from '@/api/backend'
+import { DEFAULT_VIDEO_MODEL, DEFAULT_AUDIO_MODEL, KNOWN_VIDEO_MODELS, KNOWN_AUDIO_MODELS } from '@/providers/modelDefaults'
 import {
   buildCreateVideoNodeTool,
   buildCreateImageNodeTool,
   buildCreateAudioNodeTool,
   GET_MODEL_PARAMS_TOOL,
 } from './toolSchemaGenerator'
+import {
+  selectTier,
+  expandTierSelection,
+  allTierToolNames,
+  type SelectTierContext,
+  type TierId,
+} from './toolTiers'
+import { applyBudgetToSchema } from './toolBudget'
 
 export const AGENT_TOOLS = [
   {
@@ -66,6 +75,41 @@ export const AGENT_TOOLS = [
   {
     type: 'function' as const,
     function: {
+      name: 'create_keyframe_grid',
+      description: '为单个复杂镜头生成"分镜拼贴图"——一张图内含 4/6/9 个相关 panel（一次调用 image model，成本 ≈ 1 张单图）。子类型：(1) time-progression 时间序列推演（同机位、剧情向前）；(2) scene-evolution 画面演进（状态/天气/氛围渐变）；(3) action-breakdown 动作分解（复杂动作拆 N 个 pose）；(4) multi-camera 多机位（同一时刻不同角度）。【触发场景】shot 含运镜/连续动作/剧情推演/状态变化时使用；简单短镜头继续用 create_image_node。创建后需 execute_node 执行。',
+      parameters: {
+        type: 'object',
+        properties: {
+          shotName: { type: 'string', description: '镜头名（如 shot-3-revenge）' },
+          shotDescription: { type: 'string', description: '镜头详细描述（含动作/环境/角色/镜头运动）' },
+          subType: {
+            type: 'string',
+            enum: ['time-progression', 'scene-evolution', 'action-breakdown', 'multi-camera'],
+            description: '分镜子类型：剧情推演 / 画面演进 / 动作分解 / 多机位',
+          },
+          layout: {
+            type: 'string',
+            enum: ['2x2', '2x3', '3x3'],
+            description: '宫格布局：四宫格(简单) / 六宫格(标准，默认) / 九宫格(复杂)',
+          },
+          style: {
+            type: 'string',
+            enum: ['cinematic', 'anime', 'realistic', 'painterly', 'noir', 'fantasy'],
+            description: '风格',
+          },
+          mood: {
+            type: 'string',
+            enum: ['dramatic', 'peaceful', 'tense', 'romantic', 'mysterious', 'epic'],
+            description: '情绪',
+          },
+        },
+        required: ['shotName', 'shotDescription', 'subType'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
       name: 'create_image_node',
       description: '在画布上创建图片生成节点（Gemini API）。提示词必须用英文，包含角色外貌关键词。创建后用 connect_nodes 连接参考图，再 execute_node 执行。如需优化提示词，用 optimize_prompt 而非手动修改。',
       parameters: {
@@ -86,15 +130,15 @@ export const AGENT_TOOLS = [
     type: 'function' as const,
     function: {
       name: 'create_video_node',
-      description: '在画布上创建视频生成节点。推荐模型：doubao-seedance-2-0（默认，功能最全：有声视频/参考视频/首尾帧/4-15s）/doubao-seedance-2-0-fast（快速版）/veo3.1-fast/veo3.1/sora-2-vip/kling-v3。同一模型可能有多个渠道供应商，系统自动按优先级选择并降级容错。前置条件：prompt 必须英文且包含 [Camera]/[Subject]/[Negative] 段。创建后必须用 connect_nodes 连接首帧图片，再 execute_node 执行。多个视频节点请用 parallel_execute 并行执行。',
+      description: `在画布上创建视频生成节点。可选模型：${KNOWN_VIDEO_MODELS.join(' / ')}（默认 ${DEFAULT_VIDEO_MODEL}）。同一模型可能有多个渠道供应商，系统自动按优先级选择并降级容错。前置条件：prompt 必须英文且包含 [Camera]/[Subject]/[Negative] 段。创建后必须用 connect_nodes 连接首帧图片，再 execute_node 执行。多个视频节点请用 parallel_execute 并行执行。模型能力差异（duration/aspect_ratio/generate_audio 等）通过 get_model_params 查询。`,
       parameters: {
         type: 'object',
         properties: {
           prompt: { type: 'string', description: '视频描述提示词' },
           model: {
             type: 'string',
-            enum: ['doubao-seedance-2-0', 'doubao-seedance-2-0-fast', 'veo3.1-fast', 'veo3.1', 'sora-2-vip', 'kling-v3'],
-            description: '视频模型（默认 doubao-seedance-2-0）',
+            enum: [...KNOWN_VIDEO_MODELS],
+            description: `视频模型（默认 ${DEFAULT_VIDEO_MODEL}）`,
           },
           aspect_ratio: {
             type: 'string',
@@ -166,12 +210,12 @@ export const AGENT_TOOLS = [
     type: 'function' as const,
     function: {
       name: 'create_audio_node',
-      description: '在画布上创建音频/配音节点（支持ElevenLabs/FishSpeech/CosyVoice）',
+      description: `在画布上创建音频/配音节点（支持 ${KNOWN_AUDIO_MODELS.join(' / ')}）`,
       parameters: {
         type: 'object',
         properties: {
           text: { type: 'string', description: '要转为语音的文本内容' },
-          model: { type: 'string', enum: ['elevenlabs', 'fish-speech', 'cosyvoice'], description: '音频模型' },
+          model: { type: 'string', enum: [...KNOWN_AUDIO_MODELS], description: `音频模型（默认 ${DEFAULT_AUDIO_MODEL}）` },
           voice: { type: 'string', description: '声音名称' },
         },
         required: [],
@@ -187,6 +231,36 @@ export const AGENT_TOOLS = [
         type: 'object',
         properties: {
           script: { type: 'string', description: '初始剧本或创意描述' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'create_character_extract_node',
+      description: '从视频中提取角色为可复用的角色引用。通常连接上游 videoGen 的输出，执行时调用 Sora/Seedance 角色提取 API。提取结果可连接到 characterManager 或直接到 videoGen 的 character-in。',
+      parameters: {
+        type: 'object',
+        properties: {
+          videoUrl: { type: 'string', description: '视频 URL（可选，通常由上游 videoGen 自动注入）' },
+          timestamps: { type: 'string', description: '采样时间戳（秒，逗号分隔），如 "1,3"；默认 "1,3"' },
+          label: { type: 'string', description: '节点标题（默认"角色提取"）' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'create_character_manager_node',
+      description: '创建角色管理器节点，作为画布级的角色库（name/description/characterUrl 列表）。下游的 imageGen/videoGen 可用 @角色名 引用其中的角色。可接多个 characterGrid/characterExtract 的输出来自动填充。',
+      parameters: {
+        type: 'object',
+        properties: {
+          label: { type: 'string', description: '节点标题（默认"角色管理器"）' },
         },
         required: [],
       },
@@ -223,6 +297,34 @@ export const AGENT_TOOLS = [
   {
     type: 'function' as const,
     function: {
+      name: 'create_from_images',
+      description: '根据用户本轮上传的多张图片，自动分类并批量创建合适节点（角色九宫图 / 场景九宫图 / 风格锁定 / 图片编辑）。每张图独立判定 character/scene/style/edit_input 并挂到对应节点的参考图字段。一次最多处理 10 张图。',
+      parameters: {
+        type: 'object',
+        properties: {
+          images: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'data-URL 或 base64 PNG 数组；留空则自动取最近一条用户消息里的全部图片',
+          },
+          intent: {
+            type: 'string',
+            enum: ['character_refs', 'scene_refs', 'style_lock', 'edit', 'mixed'],
+            description: '整体意图提示。mixed=每张图独立分类（默认）',
+          },
+          names: {
+            type: 'array',
+            items: { type: 'string' },
+            description: '可选：每张图片对应的命名（长度应与 images 一致）',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
       name: 'create_video_stitch_node',
       description: '在画布上创建视频拼接节点，用于将多段视频合并为完整短片。需连接多个视频生成节点的输出。执行时自动收集上游已完成的视频。',
       parameters: {
@@ -243,6 +345,20 @@ export const AGENT_TOOLS = [
         type: 'object',
         properties: {
           label: { type: 'string', description: '节点标题' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'create_timeline_node',
+      description: '在画布上创建时间轴节点，用于将多个视频/音频片段编排为带剪切点的完整时间轴。执行时自动按上游 x 坐标排序、计算总时长 + cuts 列表，输出标准 timeline JSON 给下游 stitch / 渲染节点。',
+      parameters: {
+        type: 'object',
+        properties: {
+          label: { type: 'string', description: '节点标题（默认"时间轴"）' },
         },
         required: [],
       },
@@ -292,10 +408,23 @@ export const AGENT_TOOLS = [
           videoPrompts: {
             type: 'array',
             items: { type: 'string' },
-            description: '每个镜头的视频提示词（英文，与 shotCount 对应）。格式：[Camera]: 运镜. [Subject]: 角色外貌+动作（必须包含发色/服装等外貌词）. [Atmosphere]: 氛围. [Quality]: Cinematic 4K, 24fps film grain. [Negative]: No morphing, no identity drift.',
+            description: '每个镜头的视频提示词（英文，与 shotCount 对应）。【强制结构】以 `Camera:` 或 `Action:` 开头 — 第一句话必须是动作或运镜指令。【禁止】不要在 videoPrompt 开头重复角色完整外貌描述（如 "X is a 25-year-old woman with..."）—— imageGen 的首帧已经锁定身份，且系统会自动注入 `[Character Anchor]` 前缀；在 videoPrompt 里重复外貌会让模型把注意力预算花在静态身份上，导致视频生成出"静止说话"的无动作镜头。格式：`Camera: <运镜>. Action: <主体动作 + 次级运动>. Keep <锚定项> consistent. Avoid: <具体失败模式>.`。运镜偏好 subtle push-in / slow pan / gentle dolly / locked-off with parallax；避免 360 orbit / crane / whip pan。Negative 用具体名词如 warped fingers, face distortion, logo flicker, frame stutter（不要 morphing 这种抽象词）。产品镜头加 `Keep product label and logo perfectly readable.`',
           },
           styleDescription: { type: 'string', description: '整体视觉风格描述，如"赛博朋克、冷色调、霓虹灯光、电影质感"' },
           narrationText: { type: 'string', description: '旁白/配音文本内容' },
+          productImage: {
+            type: 'string',
+            description: '【产品广告专用】产品参考图 URL 或 data-url。开启后会作为 referenceImage 锚定到全部 imageGen / videoGen 节点，保证产品在每个镜头的外观完全一致。仅在 scenario=product_ad 时生效。',
+          },
+          productOnlyShots: {
+            type: 'array',
+            items: { type: 'number' },
+            description: '【产品广告专用】1-based 镜头索引列表，列出的镜头将不带任何角色 ref，呈现纯产品。常用：[1,2] 表示前两个 hero / 桌面镜头仅产品，从第 3 镜头起人物入画。仅在 scenario=product_ad + 有 characterNames 时生效。',
+          },
+          replaceCanvas: {
+            type: 'boolean',
+            description: '是否在生成新工作流前先清空画布。默认 true（替换模式），重新跑 generate_workflow 时会丢弃旧画布，确保 verify_task 只评分新版本、不会出现新旧节点并存导致总分被旧节点压低。仅当你明确想把多次生成累加到同一画布（如多场景拼接）时才传 false。',
+          },
         },
         required: ['title', 'description'],
       },
@@ -305,6 +434,25 @@ export const AGENT_TOOLS = [
   // ============================================================
   // Agent Infrastructure Tools (Planning / Memory / Verification)
   // ============================================================
+  {
+    type: 'function' as const,
+    function: {
+      name: 'set_phase',
+      description: '【阶段切换】自我声明当前工作阶段。阶段影响工具可用性（例如 planning 禁用 create_*_node，reviewing 禁用 delete_node）。典型序列：planning → designing → building → executing → reviewing。默认 idle=无 gating。',
+      parameters: {
+        type: 'object',
+        properties: {
+          phase: {
+            type: 'string',
+            enum: ['idle', 'planning', 'designing', 'building', 'reviewing', 'executing'],
+            description: '目标阶段',
+          },
+          reason: { type: 'string', description: '切换原因（简短，用于审计日志）' },
+        },
+        required: ['phase'],
+      },
+    },
+  },
   {
     type: 'function' as const,
     function: {
@@ -351,6 +499,38 @@ export const AGENT_TOOLS = [
           expectedNodes: { type: 'number', description: '预期的节点数量' },
           checkConnections: { type: 'boolean', description: '是否检查连线完整性（默认 true）' },
           verbose: { type: 'boolean', description: '是否输出详细逐节点报告（默认 false）' },
+          useVisionVerify: {
+            type: 'boolean',
+            description: '开启视觉语义校验：第 4 维（角色外貌一致性）改用 Vision 模型（默认 gemini-vision）对每个 imageGen 的输出图做逐张语义比对。网络失败时自动 fallback 到启发式字符串匹配并在 message 中附 [vision fallback] 标记。默认 false（保留原启发式行为）。',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'verify_image_semantic',
+      description: '【视觉 QC】对单个生成图片节点的 outputImage 做语义级校验：调 Vision 模型（默认 gemini-vision）判断画面是否符合 expectedSubjects / expectedStyle。返回结构化 matchScore (0-100) + detectedSubjects + missingElements + recommendation ("accept" | "retry" | "edit_prompt")。使用时机：生成关键帧后想在提交视频前确认方向正确，或 verify_task 评分低时定位具体哪张图偏离。比 review_generated_image 更精准（调真正 Vision 模型，非启发式）。',
+      parameters: {
+        type: 'object',
+        properties: {
+          nodeId: { type: 'string', description: '目标节点 ID（精确匹配，推荐）' },
+          nodeLabel: { type: 'string', description: '目标节点标签（模糊匹配，适用于 imageGen / videoGen 首帧 / imageEdit）' },
+          expectedSubjects: {
+            type: 'array',
+            items: { type: 'string' },
+            description: '期望出现的主体（英文），如 ["character Lin Xia", "cyberpunk street"]',
+          },
+          expectedStyle: {
+            type: 'string',
+            description: '期望风格（英文），如 "anime, vibrant colors"',
+          },
+          threshold: {
+            type: 'number',
+            description: '接受阈值（0-100）。matchScore < threshold 时 recommendation 至少为 retry。默认 70。',
+          },
         },
         required: [],
       },
@@ -360,7 +540,7 @@ export const AGENT_TOOLS = [
     type: 'function' as const,
     function: {
       name: 'save_memory',
-      description: '保存重要信息到长期记忆（跨会话持久化）。适用于：用户偏好、角色设定、项目风格、工作流模式。相同 type+title 的记忆会自动更新而非重复创建。注意：记忆可能过期，recall_memory 返回的信息应与当前画布状态对照验证后再使用。',
+      description: '保存重要信息到分层记忆（Claude Code CLAUDE.md 模式）。scope 决定可见范围：session（本次对话有效）/ project（当前项目有效）/ global（跨项目永久）。相同 type+title 的记忆会自动更新而非重复创建。pinned=true 的记忆始终进入系统提示词。',
       parameters: {
         type: 'object',
         properties: {
@@ -374,7 +554,16 @@ export const AGENT_TOOLS = [
           tags: {
             type: 'array',
             items: { type: 'string' },
-            description: '标签，用于后续检索',
+            description: '标签，用于后续检索与相关性排序（命中当前用户消息的标签会被优先注入）',
+          },
+          scope: {
+            type: 'string',
+            enum: ['session', 'project', 'global'],
+            description: '记忆作用域。session=默认，仅当前对话；project=当前 canvas 专属；global=跨项目通用',
+          },
+          pinned: {
+            type: 'boolean',
+            description: '置顶记忆。开启后每轮都会注入系统提示，绕过相关性排序（谨慎使用，上限建议 2 条）',
           },
         },
         required: ['title', 'content', 'type'],
@@ -399,6 +588,48 @@ export const AGENT_TOOLS = [
   {
     type: 'function' as const,
     function: {
+      name: 'forget_memory',
+      description: '按 id / tag / scope / 年龄 删除记忆条目（Claude Code /memory clean 模式）。至少提供一个过滤条件。返回删除条数。典型用法：忘掉旧项目偏好 / 清空 session / 按标签批量清理。',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: '精确的 memory id（最强过滤）' },
+          tag: { type: 'string', description: '包含该标签的条目会被删除（大小写不敏感）' },
+          scope: {
+            type: 'string',
+            enum: ['session', 'project', 'global'],
+            description: '匹配该 scope 的条目会被删除',
+          },
+          olderThan: { type: 'number', description: '毫秒数。updatedAt 早于 Date.now()-N 的条目会被删除。例如 604800000 = 7 天' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'review_generated_image',
+      description: '审查已生成图片/视频节点的质量。通过 nodeLabel 或 nodeId 定位节点，返回 0-100 评分、是否通过、问题列表和改进建议。reviewing 阶段推荐使用此工具。当前为启发式 stub（不消耗 Vision API），后续可接入 GPT-4V 进行视觉一致性审查。',
+      parameters: {
+        type: 'object',
+        properties: {
+          nodeLabel: { type: 'string', description: '目标节点标签名（模糊匹配）' },
+          nodeId: { type: 'string', description: '目标节点精确 ID（优先于 nodeLabel）' },
+          threshold: { type: 'number', description: '通过阈值 0-100，默认 60' },
+          aspects: {
+            type: 'array',
+            items: { type: 'string', enum: ['composition', 'consistency', 'prompt_adherence', 'all'] },
+            description: '审查维度，默认 all',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
       name: 'update_node',
       description: '更新画布上已有节点的数据字段。通过 nodeLabel（模糊匹配）或 nodeId（精确匹配）定位节点。若同名节点有多个，先用 get_canvas_state 获取节点 ID，再用 nodeId 精确定位。可修改字段：prompt、description、content、name、style、model、aspect_ratio、duration 等。提示：如果目的是优化提示词质量，优先使用 optimize_prompt 工具（自动 LLM 优化并写回）。',
       parameters: {
@@ -408,7 +639,7 @@ export const AGENT_TOOLS = [
           nodeId: { type: 'string', description: '目标节点的精确 ID（优先于 nodeLabel，用于消除同名歧义）' },
           updates: {
             type: 'object',
-            description: '要更新的字段键值对。示例：{"model": "veo3.1-fast", "prompt": "新提示词"}',
+            description: `要更新的字段键值对。示例：{"model": "${DEFAULT_VIDEO_MODEL}", "prompt": "新提示词"}`,
             additionalProperties: true,
           },
         },
@@ -580,6 +811,10 @@ export const AGENT_TOOLS = [
               required: ['field'],
             },
             description: '注入目标列表',
+          },
+          autoDistribute: {
+            type: 'boolean',
+            description: '开启后，N 张图按 round-robin 分配到 M 个 targets（target[i] 拿 image[i % N]）。默认 false（每个 target 拿全部图）。',
           },
         },
         required: ['targets'],
@@ -761,39 +996,196 @@ export const AGENT_TOOLS = [
       },
     },
   },
+  // ═══════════════════════════════════════════════════════════════════
+  // Meta-tool: Progressive disclosure entry point. Always in Tier 1.
+  // ═══════════════════════════════════════════════════════════════════
+  {
+    type: 'function' as const,
+    function: {
+      name: 'discover_tools',
+      description: '【元工具】按需查询当前会话未直接暴露的工具。默认 Agent 看到精简的 Tier 1+2 工具；如需使用记忆/素材库/优化等高级工具，先用此工具检索，再按返回 schema 调用。query 匹配工具 name/description 子串；tier=1/2/3 可整档取回。',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: '关键词（可选），匹配工具 name 或 description 子串' },
+          tier: { type: 'number', enum: [1, 2, 3], description: '（可选）按档位取全档工具' },
+        },
+        required: [],
+      },
+    },
+  },
 ]
 
+/** Agent 工作阶段。idle=无 gating（默认），其它阶段叠加白/黑名单。 */
+export type AgentPhase = 'idle' | 'planning' | 'designing' | 'building' | 'reviewing' | 'executing'
+
+/** 选项式参数，用于 getAgentTools 支持渐进式披露（progressive disclosure）。 */
+export interface GetAgentToolsOptions {
+  videoModels?: AiModelResponse[]
+  imageModels?: AiModelResponse[]
+  audioModels?: AiModelResponse[]
+  /** 强制使用的 tier 集合；跳过启发式。 */
+  tier?: TierId[]
+  /** 返回所有 40+1 个工具，用于旧测试与回退。 */
+  includeAll?: boolean
+  /** 启发式上下文（用户消息 + 画布状态）。 */
+  context?: { userMessage?: string; canvasEmpty?: boolean }
+  /** Agent 当前工作阶段；'idle'=no-op；其他阶段会叠加 phase-aware 白/黑名单。 */
+  phase?: AgentPhase
+}
+
 /**
- * 运行时工具列表构造器 — 将 AGENT_TOOLS 中的 create_video_node / create_image_node /
- * create_audio_node 替换为基于后端模型列表生成的模型感知版本。
+ * Phase → (allow?, deny?) 表。
+ * allow: 强制加入的工具（在 tier 过滤之后补回）
+ * deny:  强制剔除的工具（比 allow 优先级低，但会覆盖 tier 的结果）
+ */
+const PHASE_POLICY: Record<AgentPhase, { allow?: string[]; deny?: string[] }> = {
+  idle: {},
+  planning: {
+    allow: ['plan_task', 'save_memory', 'recall_memory', 'detect_scenario', 'set_phase', 'discover_tools'],
+    // 禁止在 planning 阶段创建节点 —— 先说清楚做什么，再动手。
+    deny: [
+      'create_video_node', 'create_image_node', 'create_audio_node',
+      'create_character_grid', 'create_scene_grid', 'create_storyboard_node',
+      'create_style_lock_node', 'create_image_edit_node', 'create_video_stitch_node',
+      'create_continuity_check_node', 'create_llm_node', 'create_text_node',
+      'create_character_extract_node', 'create_character_manager_node',
+      'create_from_images', 'generate_workflow',
+    ],
+  },
+  designing: {
+    allow: ['create_style_lock_node', 'create_character_grid', 'create_scene_grid', 'create_from_images', 'set_phase'],
+    // 禁止真正执行 —— 设计阶段只铺架子，别早于时间消耗 API 配额。
+    deny: ['execute_node', 'retry_node', 'batch_execute', 'parallel_execute'],
+  },
+  building: {
+    allow: [], // Tier2 已包含所有 create_*，无需额外 allow
+    deny: [],
+  },
+  reviewing: {
+    allow: ['review_generated_image', 'verify_image_semantic', 'verify_task', 'review_content', 'set_phase', 'recall_memory'],
+    // 禁止破坏性操作：reviewing 时保持画布可观察。
+    deny: [
+      'delete_node', 'forget_memory',
+      'create_video_node', 'create_image_node', 'create_audio_node',
+      'create_character_grid', 'create_scene_grid',
+      'create_style_lock_node', 'create_image_edit_node',
+      'create_video_stitch_node', 'create_continuity_check_node',
+      'create_llm_node', 'create_text_node',
+      'create_character_extract_node', 'create_character_manager_node',
+      'create_from_images', 'generate_workflow',
+    ],
+  },
+  executing: {
+    allow: ['execute_node', 'batch_execute', 'parallel_execute', 'retry_node', 'get_node_output', 'set_phase'],
+    deny: [
+      'create_video_node', 'create_image_node', 'create_audio_node',
+      'create_character_grid', 'create_scene_grid',
+      'create_style_lock_node', 'create_image_edit_node',
+      'create_video_stitch_node', 'create_continuity_check_node',
+      'create_llm_node', 'create_text_node',
+      'create_character_extract_node', 'create_character_manager_node',
+      'create_from_images',
+    ],
+  },
+}
+
+/**
+ * 运行时工具列表构造器。两种调用方式：
  *
- * @param videoModels  已加载的 video capability 模型 (含 param_schema)
- * @param imageModels  已加载的 image capability 模型
- * @param audioModels  已加载的 audio capability 模型
- * @returns 完整的 AGENT_TOOLS 副本，其中三个工具被替换
+ * ```ts
+ * // 1) 老风格（向后兼容，位置参数）：返回全部工具，不做 tier 过滤。
+ * getAgentTools(videoModels, imageModels, audioModels)
  *
- * 如果某个 capability 的模型列表为空，则保留静态定义（向后兼容）。
+ * // 2) 新选项对象：支持 tier / includeAll / 启发式上下文。
+ * getAgentTools({ videoModels, imageModels, audioModels,
+ *                 context: { userMessage: '...', canvasEmpty: true } })
+ * ```
+ *
+ * `create_video_node / create_image_node / create_audio_node` 在有对应
+ * 后端模型时会被替换为动态 schema。
+ *
+ * @returns 过滤后的工具数组；始终包含 `discover_tools` 兜底让 LLM 能自己补齐。
  */
 export function getAgentTools(
-  videoModels: AiModelResponse[] = [],
+  videoOrOptions: AiModelResponse[] | GetAgentToolsOptions = [],
   imageModels: AiModelResponse[] = [],
   audioModels: AiModelResponse[] = [],
 ): typeof AGENT_TOOLS {
-  const replacements: Record<string, unknown> = {}
-  if (videoModels.length > 0) {
-    replacements.create_video_node = buildCreateVideoNodeTool(videoModels)
-  }
-  if (imageModels.length > 0) {
-    replacements.create_image_node = buildCreateImageNodeTool(imageModels)
-  }
-  if (audioModels.length > 0) {
-    replacements.create_audio_node = buildCreateAudioNodeTool(audioModels)
-  }
+  // Normalise parameters
+  const opts: GetAgentToolsOptions = Array.isArray(videoOrOptions)
+    ? { videoModels: videoOrOptions, imageModels, audioModels, includeAll: true }
+    : videoOrOptions
 
-  // Preserve order + replace in place
-  return AGENT_TOOLS.map(t => {
+  const { videoModels: vm = [], imageModels: im = [], audioModels: am = [], tier, includeAll, context, phase = 'idle' } = opts
+
+  // 1) Dynamic replacements for model-aware tools
+  const replacements: Record<string, unknown> = {}
+  if (vm.length > 0) replacements.create_video_node = buildCreateVideoNodeTool(vm)
+  if (im.length > 0) replacements.create_image_node = buildCreateImageNodeTool(im)
+  if (am.length > 0) replacements.create_audio_node = buildCreateAudioNodeTool(am)
+
+  // Apply replacements while preserving AGENT_TOOLS order
+  const fullList = AGENT_TOOLS.map(t => {
     const name = t.function?.name
     if (name && replacements[name]) return replacements[name] as typeof t
     return t
   }) as typeof AGENT_TOOLS
+
+  // 2) includeAll / legacy positional path → return everything
+  if (includeAll) return fullList.map(t => applyBudgetToSchema(t)) as typeof AGENT_TOOLS
+
+  // 3) Otherwise decide which tools to expose
+  let allowedNames: Set<string>
+  if (tier && tier.length > 0) {
+    // Explicit tier selection
+    allowedNames = expandTierSelection({ tiers: tier, addOns: [] })
+  } else {
+    // Heuristic based on user message and canvas state
+    const selection = selectTier(
+      context?.userMessage || '',
+      { canvasEmpty: context?.canvasEmpty },
+    )
+    allowedNames = expandTierSelection(selection)
+  }
+
+  // Guarantee discover_tools is present so the LLM can always escape the tier
+  allowedNames.add('discover_tools')
+
+  // ── Phase-aware gating (Claude Code explicit-state pattern) ──
+  // phase='idle' is a no-op for backward compat. Other phases union in
+  // any 'allow' tools (so the LLM can still navigate) and remove any
+  // 'deny' tools (to prevent the wrong move at the wrong time).
+  if (phase !== 'idle') {
+    const policy = PHASE_POLICY[phase]
+    for (const n of policy.allow || []) allowedNames.add(n)
+    for (const n of policy.deny || []) allowedNames.delete(n)
+    // set_phase + discover_tools always stay — they're the escape hatches.
+    allowedNames.add('set_phase')
+    allowedNames.add('discover_tools')
+  }
+
+  const filtered = fullList.filter(t => {
+    const name = t.function?.name
+    return !!name && allowedNames.has(name)
+  }) as typeof AGENT_TOOLS
+
+  // 4) Decorate schemas of budgeted tools with `response_format` param.
+  //    Uniform injection keeps each schema literal clean and the registry
+  //    (src/providers/toolBudget.ts) as the single source of truth.
+  const decorated = filtered.map(t => applyBudgetToSchema(t)) as typeof AGENT_TOOLS
+
+  // 5) Dev-only telemetry: log rough schema size
+  if (typeof import.meta !== 'undefined' && (import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV) {
+    const tokens = Math.round(JSON.stringify(decorated).length / 4)
+    const tierLabel = tier ? tier.join('+') : 'auto'
+    // eslint-disable-next-line no-console
+    console.info(`[agent-tools] tier=${tierLabel} tools=${decorated.length} ~${tokens}tok`)
+  }
+
+  return decorated
 }
+
+/** Expose tier metadata for tests / UI. */
+export const ALL_TIER_TOOL_NAMES = allTierToolNames()
+export type { TierId, SelectTierContext } from './toolTiers'

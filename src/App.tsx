@@ -22,6 +22,8 @@ import { useUIStore } from '@/store/uiStore'
 import TemplatePanel from '@/components/sidebar/TemplatePanel'
 import AssetLibraryPanel from '@/components/sidebar/AssetLibraryPanel'
 import { startLegacyBridge } from '@/store/assetLegacyBridge'
+import { runWorkflowMigrations } from '@/store/workflowMigrations'
+import ApprovalDialog from '@/components/sidebar/ApprovalDialog'
 
 function App() {
   const initialize = useSettingsStore((s) => s.initialize)
@@ -91,6 +93,9 @@ function App() {
 
   useEffect(() => {
     initialize()
+    // Drop nodes of removed types from any persisted workflow (one-time at
+    // mount). Silent no-op for clean workflows.
+    runWorkflowMigrations()
     // Keep legacy characterAppearances in sync with asset library so the
     // "auto-inject appearance" logic benefits from library entries.
     const stop = startLegacyBridge()
@@ -129,6 +134,10 @@ function App() {
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden bg-background">
+      {/* Global modals — high-risk tool approval surfaces here when the
+          backend Agent runtime triggers `approval_required`. */}
+      <ApprovalDialog />
+
       {/* Hidden file input for import */}
       <input
         ref={fileInputRef}

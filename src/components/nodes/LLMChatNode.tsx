@@ -31,7 +31,7 @@ function LLMChatNode({ id, data }: NodeProps) {
   const systemPrompt = String(data.systemPrompt || '')
   const userInput = String(data.userInput || '')
   const response = String(data.response || '')
-  const modelId = String(data.model || 'gemini-3.1-pro-preview')
+  const modelId = String(data.model || DEFAULT_LLM_MODEL)
   const errorMsg = data.errorMsg ? String(data.errorMsg) : null
   const [isStreaming, setIsStreaming] = useState(false)
 

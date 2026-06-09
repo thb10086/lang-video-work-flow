@@ -43,7 +43,7 @@ export default function ModeTabs<V extends string = string>({
             disabled={tab.disabled}
             onClick={() => !tab.disabled && onChange(tab.value)}
             title={tab.disabled ? tab.disabledReason : undefined}
-            className={`libtv-tab ${tab.value === value ? 'libtv-tab--active' : ''} ${
+            className={`libtv-tab nodrag ${tab.value === value ? 'libtv-tab--active' : ''} ${
               tab.disabled ? 'opacity-40 cursor-not-allowed' : ''
             }`}
           >

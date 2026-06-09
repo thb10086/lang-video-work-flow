@@ -40,10 +40,12 @@ def _ensure_adapters_registered() -> None:
     from app.services.adapters.openai_adapter import OpenAIAdapter
     from app.services.adapters.apimart_adapter import APIMartAdapter
     from app.services.adapters.puyo_adapter import PuyoAdapter
+    from app.services.adapters.toapis_adapter import ToApisAdapter
     register_adapter("gemini", GeminiAdapter)
     register_adapter("openai", OpenAIAdapter)
     register_adapter("apimart", APIMartAdapter)
     register_adapter("puyo", PuyoAdapter)
+    register_adapter("toapis", ToApisAdapter)
 
 
 class ChannelService:

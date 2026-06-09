@@ -8,6 +8,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useFlowStore } from '@/store/flowStore'
 import { findNodeByLabel, findNodesByLabel, findNodeById } from '@/providers/nodeExecutor'
+import { isLegacyCharacterNode } from './_helpers/characterAssetTestHelpers'
 
 function reset() {
   useFlowStore.setState({ nodes: [], edges: [], selectedNodeId: null, _history: [], _historyIndex: -1, _clipboard: null })
@@ -197,5 +198,98 @@ describe('边缘情况', () => {
     injectNode('n1', 'imageGen', '图片生成')
     expect(findNodeByLabel('图片生成')).not.toBeNull()
     expect(findNodeByLabel('IMAGEGEN')).toBeNull()
+  })
+})
+
+// ────────────────────────────────────────────────────────────
+describe('create_character_extract_node / create_character_manager_node (agentTools)', () => {
+  beforeEach(reset)
+
+  it('creates a characterExtract node with defaults', async () => {
+    const { executeToolCall } = await import('@/providers/agentTools')
+    const res = await executeToolCall('create_character_extract_node', {})
+    expect(res.success).toBe(true)
+    expect(res.nodeIds).toHaveLength(1)
+
+    const node = useFlowStore.getState().nodes.find(n => n.id === res.nodeIds![0])!
+    expect(isLegacyCharacterNode(node, 'characterExtract')).toBe(true)
+    expect(node.data.label).toBe('角色提取')
+    expect(node.data.timestamps).toBe('1,3')
+    expect(node.data.status).toBe('idle')
+    expect(node.data.videoUrl).toBeNull()
+  })
+
+  it('characterExtract honors Agent-provided videoUrl and timestamps', async () => {
+    const { executeToolCall } = await import('@/providers/agentTools')
+    const res = await executeToolCall('create_character_extract_node', {
+      videoUrl: 'https://cos.example.com/v.mp4',
+      timestamps: '2,5',
+      label: '提取主角',
+    })
+    const node = useFlowStore.getState().nodes.find(n => n.id === res.nodeIds![0])!
+    expect(node.data.videoUrl).toBe('https://cos.example.com/v.mp4')
+    expect(node.data.timestamps).toBe('2,5')
+    expect(node.data.label).toBe('提取主角')
+  })
+
+  it('creates a characterManager with empty characters list', async () => {
+    const { executeToolCall } = await import('@/providers/agentTools')
+    const res = await executeToolCall('create_character_manager_node', {})
+    expect(res.success).toBe(true)
+    expect(res.nodeIds).toHaveLength(1)
+
+    const node = useFlowStore.getState().nodes.find(n => n.id === res.nodeIds![0])!
+    expect(isLegacyCharacterNode(node, 'characterManager')).toBe(true)
+    expect(node.data.label).toBe('角色管理器')
+    expect(node.data.characters).toEqual([])
+  })
+})
+
+// ────────────────────────────────────────────────────────────
+describe('generate_workflow emits characterManager for drama scenarios', () => {
+  beforeEach(reset)
+
+  it('short_drama builder wires a single characterManager with character-in edges', async () => {
+    const { executeToolCall } = await import('@/providers/agentTools')
+    await executeToolCall('generate_workflow', {
+      title: 'T',
+      description: 'D',
+      scenario: 'short_drama',
+      characterNames: ['Alice', 'Bob'],
+      characterDescriptions: ['blonde woman', 'dark-haired man'],
+      sceneNames: ['Park'],
+      sceneDescriptions: ['sunny park'],
+      shotCount: 2,
+      shotPrompts: ['Alice walks', 'Bob runs'],
+      videoPrompts: ['Alice walks', 'Bob runs'],
+    })
+    const { nodes, edges } = useFlowStore.getState()
+    const managers = nodes.filter(n => isLegacyCharacterNode(n, 'characterManager'))
+    expect(managers).toHaveLength(1)
+
+    const charInEdges = edges.filter(e =>
+      e.target === managers[0].id && e.targetHandle === 'character-in',
+    )
+    expect(charInEdges).toHaveLength(2)  // one per character
+  })
+
+  it('comic_drama builder wires a single characterManager with character-in edges', async () => {
+    const { executeToolCall } = await import('@/providers/agentTools')
+    await executeToolCall('generate_workflow', {
+      title: 'T',
+      description: 'D',
+      scenario: 'comic_drama',
+      characterNames: ['Hero'],
+      characterDescriptions: ['red-haired anime hero'],
+      shotCount: 3,
+    })
+    const { nodes, edges } = useFlowStore.getState()
+    const managers = nodes.filter(n => isLegacyCharacterNode(n, 'characterManager'))
+    expect(managers).toHaveLength(1)
+
+    const charInEdges = edges.filter(e =>
+      e.target === managers[0].id && e.targetHandle === 'character-in',
+    )
+    expect(charInEdges).toHaveLength(1)
   })
 })

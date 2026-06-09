@@ -12,6 +12,16 @@
 
 import { useFlowStore } from '@/store/flowStore'
 import type { ToolCallResult } from './toolHelpers'
+import {
+  getActiveVerifier,
+  DEFAULT_VISION_THRESHOLD,
+  VISION_SCORE_REWARD_CEILING,
+  VISION_PASS_AVG,
+  type VerifyResult,
+} from './visionVerifyAdapter'
+// Ensure the default vision adapter is registered even if this module is the
+// first to touch the registry. Idempotent — registerVerifier is keyed by id.
+import './geminiVisionAdapter'
 
 // 外貌描述里的"低信息量"通用词 — 挑 keywords 时需跳过，避免把 "young/with/and"
 // 这种无区分度词当作角色指纹。优先保留颜色/部位/服装等具视觉锚定力的词。
@@ -40,18 +50,34 @@ function pickAnchorKeywords(appearance: string, limit = 4): string[] {
   return out
 }
 
-export function handleVerifyTask(args: Record<string, unknown>): ToolCallResult {
+/** Sliding-window average of Vision scores. Returns a per-node contribution
+ *  point value within the 20-point dimension 4 budget. */
+function computeVisionDimensionPoints(results: VerifyResult[]): number {
+  if (results.length === 0) return 20 // No images to verify — full credit
+  const avg = results.reduce((s, r) => s + r.matchScore, 0) / results.length
+  // matchScore 0-100 → 0-20 pts, rewarded at VISION_SCORE_REWARD_CEILING so
+  // minor imperfections don't collapse the grade. See constant docs.
+  return Math.max(0, Math.min(20, Math.round((avg / VISION_SCORE_REWARD_CEILING) * 20)))
+}
+
+export async function handleVerifyTask(args: Record<string, unknown>): Promise<ToolCallResult> {
   const store = useFlowStore.getState()
   const nodes = store.nodes
   const edges = store.edges
   const expectedNodes = args.expectedNodes ? Number(args.expectedNodes) : null
   const checkConnections = args.checkConnections !== false
   const verbose = Boolean(args.verbose)
+  const useVisionVerify = Boolean(args.useVisionVerify)
 
   const issues: string[] = []
   const passed: string[] = []
   let totalPoints = 0
   let maxPoints = 0
+  // Tracks whether dimension 4 used heuristic (true) vs vision (false).
+  // When vision was requested but any call failed, we flip this back to true
+  // and append a [vision fallback] marker to the message.
+  let visionFallback = false
+  let visionSummary: string | null = null
 
   // ── 1. Node count (10 pts) ──
   maxPoints += 10
@@ -107,12 +133,24 @@ export function handleVerifyTask(args: Record<string, unknown>): ToolCallResult 
   }
 
   // ── 4. Character appearance consistency (20 pts) ──
+  // Default path: heuristic keyword anchoring on prompt text.
+  // Opt-in path (useVisionVerify=true): hit every imageGen with outputImage
+  // through the active VisionVerifier and score by matchScore average.
+  // Any vision failure falls back to heuristic + sets visionFallback=true.
   maxPoints += 20
-  const charAppearances = store.getCharacterAppearances()
-  const charNames = Object.keys(charAppearances)
-  if (charNames.length === 0) {
-    totalPoints += 20
-  } else {
+
+  // Collect the vision targets up front so we can decide path before scoring.
+  const visionTargets = useVisionVerify
+    ? nodes.filter(n => n.type === 'imageGen' && typeof n.data?.outputImage === 'string' && (n.data.outputImage as string).length > 0)
+    : []
+
+  const runHeuristic = (): void => {
+    const charAppearances = store.getCharacterAppearances()
+    const charNames = Object.keys(charAppearances)
+    if (charNames.length === 0) {
+      totalPoints += 20
+      return
+    }
     let charMissing = 0
     const charDetails: string[] = []
     // 预计算每个角色的 anchor keywords，避免重复拆词
@@ -148,6 +186,85 @@ export function handleVerifyTask(args: Record<string, unknown>): ToolCallResult 
       issues.push(`角色外貌缺失: ${charMissing} 处提示词缺少角色外貌关键词`)
       if (verbose) issues.push(...charDetails)
     }
+  }
+
+  if (useVisionVerify && visionTargets.length === 0) {
+    // Flag requested but no imageGen outputs yet — skip vision, no penalty.
+    totalPoints += 20
+    visionSummary = '无 outputImage 可校验，跳过 Vision QC'
+  } else if (useVisionVerify) {
+    const verifier = (() => {
+      try { return getActiveVerifier() } catch { return null }
+    })()
+    if (!verifier) {
+      visionFallback = true
+      runHeuristic()
+    } else {
+      const appearances = store.getCharacterAppearances()
+      const charNames = Object.keys(appearances)
+      // Fire all vision calls in parallel. Each verify() is already wrapped
+      // in try/catch by the adapter, so promises always resolve — but we
+      // still use Promise.allSettled() as a safety net in case a future
+      // adapter forgets to wrap its errors. Preserving input order matters
+      // for the verbose branch below that maps result[i] → visionTargets[i].
+      const settled = await Promise.allSettled(
+        visionTargets.map(n => {
+          const imageUrl = String(n.data?.outputImage || '')
+          const prompt = String(n.data?.prompt || '').toLowerCase()
+          const expectedSubjects = charNames.filter(name => prompt.includes(name.toLowerCase()))
+          return verifier.verify(imageUrl, {
+            subjects: expectedSubjects.length > 0 ? expectedSubjects : undefined,
+            threshold: DEFAULT_VISION_THRESHOLD,
+          })
+        }),
+      )
+      // We track per-target results + failures in parallel arrays keyed by
+      // `visionTargets` index so we can emit label-accurate verbose output
+      // without relying on the fragile `results[idx] → visionTargets[idx]`
+      // alignment the serial version had.
+      const results: VerifyResult[] = []
+      const okIndices: number[] = []
+      const failedNodes: string[] = []
+      for (let i = 0; i < settled.length; i++) {
+        const s = settled[i]
+        const n = visionTargets[i]
+        const label = String(n.data?.label || n.id)
+        if (s.status !== 'fulfilled') {
+          failedNodes.push(label)
+          continue
+        }
+        const r = s.value
+        // Degraded reply (score=0 + "Vision 验证调用失败") counts as a failure
+        if (r.matchScore === 0 && r.reasoning.startsWith('Vision')) {
+          failedNodes.push(label)
+        } else {
+          results.push(r)
+          okIndices.push(i)
+        }
+      }
+      if (failedNodes.length > 0 || results.length === 0) {
+        // Any failure → fallback. Keep partial results in summary.
+        visionFallback = true
+        runHeuristic()
+      } else {
+        const pts = computeVisionDimensionPoints(results)
+        totalPoints += pts
+        const avg = Math.round(results.reduce((s, r) => s + r.matchScore, 0) / results.length)
+        visionSummary = `Vision QC: ${results.length} 张图平均 matchScore=${avg}/100 → ${pts}/20 pts`
+        if (avg >= VISION_PASS_AVG) passed.push(visionSummary)
+        else issues.push(visionSummary)
+        if (verbose) {
+          for (let j = 0; j < results.length; j++) {
+            const r = results[j]
+            const originalIdx = okIndices[j]
+            const label = visionTargets[originalIdx]?.data?.label ?? `#${originalIdx}`
+            issues.push(`  「${String(label)}」matchScore=${r.matchScore} → ${r.recommendation}${r.missingElements.length > 0 ? ` (missing: ${r.missingElements.slice(0, 3).join(', ')})` : ''}`)
+          }
+        }
+      }
+    }
+  } else {
+    runHeuristic()
   }
 
   // ── 5. Field completeness — key fields not empty (20 pts) ──
@@ -206,9 +323,14 @@ export function handleVerifyTask(args: Record<string, unknown>): ToolCallResult 
   }
 
   const lines: string[] = [
-    `画布质量评分: ${score}/100`,
+    `画布质量评分: ${score}/100${visionFallback ? ' [vision fallback]' : ''}`,
     `节点 ${nodes.length} | 连线 ${edges.length} | 状态: ${[...statuses.entries()].map(([k, v]) => `${k}=${v}`).join(', ')}`,
   ]
+  if (visionFallback) {
+    lines.push('Vision 校验失败，第 4 维已回退到启发式打分')
+  } else if (visionSummary && useVisionVerify) {
+    lines.push(visionSummary)
+  }
   if (passed.length > 0) lines.push(`通过 (${passed.length}): ${passed.join(' | ')}`)
   if (issues.length > 0) lines.push(`问题 (${issues.length}):\n${issues.map(i => `  - ${i}`).join('\n')}`)
   if (issues.length === 0) lines.push('所有检查项通过。')

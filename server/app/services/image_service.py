@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.channel_service import ChannelService
 from app.services.cos_service import cos_service
+from app.services.media_url_normalizer import normalize_image_list
 from app.services.model_service import ModelService
 from app.services.param_validator import ParamValidationError, validate_params
 
@@ -59,10 +60,19 @@ class ImageService:
         if not channels:
             raise RuntimeError(f"No channels available for model: {model_id}")
 
+        # 把 base64 / data URL 参考图先上传到 COS（适配器只接受 http URL）
+        ref_urls = await normalize_image_list(reference_images)
+        if reference_images and len(ref_urls) < len(reference_images):
+            logger.info(
+                "image_service: normalized reference_images %d → %d (dropped %d)",
+                len(reference_images), len(ref_urls),
+                len(reference_images) - len(ref_urls),
+            )
+
         # 构建参数
         gen_params = {
             "prompt": prompt,
-            "reference_images": reference_images or [],
+            "reference_images": ref_urls,
             **clean_params,
         }
 
@@ -75,14 +85,25 @@ class ImageService:
             if result.success and result.data:
                 images = result.data.get("images", [])
 
-                # Auto-upload to COS
+                # Auto-upload to COS — 仅在适配器返回 base64 (img["data"]) 且尚未提供 URL 时
+                # toapis / 部分渠道直接返回 CDN URL，此时 img["data"] 不存在，无需重传
                 if auto_upload and cos_service.ready:
                     for img in images:
+                        if img.get("url"):
+                            continue  # already a URL — adapter handled CDN itself
+                        b64 = img.get("data")
+                        if not b64:
+                            continue  # neither url nor data — nothing to upload
                         try:
-                            upload_result = await cos_service.upload(img["data"])
+                            upload_result = await cos_service.upload(b64)
                             img["url"] = upload_result["url"]
                         except Exception as e:
-                            logger.warning("COS upload failed: %s", e)
+                            logger.warning(
+                                "COS upload failed (model=%s): %s: %s",
+                                model_id,
+                                type(e).__name__,
+                                str(e) or "<empty>",
+                            )
 
                 return {
                     "images": images,
@@ -91,6 +112,12 @@ class ImageService:
                 }
 
             last_error = result.error
-            logger.warning("Channel %s failed for image gen: %s", channel.channel_id, result.error)
+            logger.warning(
+                "Channel %s failed for image gen (model=%s, channel_model=%s): %s",
+                channel.channel_id,
+                model_id,
+                mapping.channel_model_id,
+                result.error or "<empty error>",
+            )
 
         raise RuntimeError(f"All channels failed for {model_id}: {last_error}")

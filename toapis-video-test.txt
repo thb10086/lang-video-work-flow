@@ -1,0 +1,5 @@
+﻿[OK]   kling-v3 -> task=tsk_vid_01KQZ38GYSEAKN9WSW5B1VF87Z
+[FAIL] sora-2-vip -> 模型 sora-2-vip 未配置渠道能力（ChannelCapability），请联系管理员配置 SKU 路由 (request id: 2026050700
+[OK]   veo3.1-fast -> task=tsk_vid_01KQZ38KS33HYXAGBES085ZSQM
+[FAIL] doubao-seedance-2.0 -> 模型 doubao-seedance-2.0 未配置渠道能力（ChannelCapability），请联系管理员配置 SKU 路由 (request id: 2
+[FAIL] doubao-seedance-2.0-fast -> 模型 doubao-seedance-2.0-fast 未配置渠道能力（ChannelCapability），请联系管理员配置 SKU 路由 (request 

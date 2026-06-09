@@ -22,7 +22,7 @@ logger = logging.getLogger("prism.tools.generation")
 async def llm_chat(
     prompt: str,
     system: str = "",
-    model: str = "gemini-3.1-pro-preview",
+    model: str = settings.DEFAULT_LLM_MODEL,
     temperature: float = 0.7,
     max_tokens: int = 2000,
 ) -> str:
@@ -54,7 +54,7 @@ async def llm_chat(
 async def llm_chat_json(
     prompt: str,
     system: str = "Always respond in valid JSON, no markdown wrapping.",
-    model: str = "gemini-3.1-pro-preview",
+    model: str = settings.DEFAULT_LLM_MODEL,
     temperature: float = 0.5,
 ) -> dict[str, Any]:
     """调用 LLM 并解析 JSON 响应。"""
@@ -65,7 +65,7 @@ async def llm_chat_json(
 
 async def classify_image_vision(
     image_url: str,
-    model: str = "gpt-4o",
+    model: str = settings.DEFAULT_LLM_MODEL,
 ) -> dict[str, Any]:
     """使用 LLM vision 分类图片。返回 {category, description, confidence}。"""
     classify_prompt = """Analyze the given image and classify it into EXACTLY ONE category:

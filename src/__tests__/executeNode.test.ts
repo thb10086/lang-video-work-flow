@@ -31,7 +31,15 @@ const mockGenerateImage = vi.fn().mockResolvedValue({
 const mockSubmitVideo = vi.fn().mockResolvedValue({ task_id: 'mock-task-123', status: 'pending' })
 const mockChat = vi.fn().mockResolvedValue({ text: '{}' })
 const mockUploadImage = vi.fn().mockResolvedValue({ url: 'https://cdn.test/img.png', key: 'img.png' })
-const mockQueryTask = vi.fn().mockResolvedValue({ task_id: 'mock-task-123', status: 'processing', progress: 50 })
+// Default to "completed" so executeVideoGen tests do not hang on the new
+// awaited-polling behavior. Tests that want to exercise pending/failed/timeout
+// override per-call via mockResolvedValueOnce.
+const mockQueryTask = vi.fn().mockResolvedValue({
+  task_id: 'mock-task-123',
+  status: 'completed',
+  progress: 100,
+  output_url: 'https://cos.example.com/mock-video.mp4',
+})
 
 vi.mock('@/api/backend', () => ({
   backendApi: {
@@ -153,15 +161,105 @@ describe('executeNode — videoGen', () => {
     expect(result.message).toContain('prompt')
   })
 
-  it('submits task and returns success with taskId', async () => {
+  it('submits task and AWAITS polling completion (no fire-and-forget)', async () => {
+    // Default mock returns 'completed' → polling should resolve fast
     injectNode('v1', 'videoGen', {
       prompt: 'Ocean waves at sunset',
       model: 'veo3.1-fast',
     })
     const result = await executeNode('v1')
     expect(result.success).toBe(true)
-    // taskId is displayed as slice(0,8) in the message
-    expect(result.message).toContain('mock-tas')
+
+    // CRITICAL: when executeNode returns, node MUST already be `done` with
+    // the actual video URL — proves we awaited the polling result instead
+    // of returning success immediately after submission.
+    const node = useFlowStore.getState().nodes.find(n => n.id === 'v1')!
+    expect(node.data.status).toBe('done')
+    expect(node.data.outputVideo).toBe('https://cos.example.com/mock-video.mp4')
+  })
+
+  // ── P0-1 RED: fire-and-forget regression ──
+  it('GAP-VIDEO-1: does NOT return success until backend task completes', async () => {
+    // Sequence: 2× processing, then completed. executeNode must poll until completion.
+    mockQueryTask.mockReset()
+    mockQueryTask
+      .mockResolvedValueOnce({ task_id: 't1', status: 'processing', progress: 20 })
+      .mockResolvedValueOnce({ task_id: 't1', status: 'processing', progress: 60 })
+      .mockResolvedValueOnce({ task_id: 't1', status: 'completed', progress: 100, output_url: 'https://cos/v1.mp4' })
+
+    mockSubmitVideo.mockResolvedValueOnce({ task_id: 't1', status: 'pending' })
+
+    injectNode('v1', 'videoGen', { prompt: 'shot 1', model: 'veo3.1-fast' })
+    const result = await executeNode('v1')
+    expect(result.success).toBe(true)
+    expect(mockQueryTask).toHaveBeenCalledTimes(3)
+
+    const node = useFlowStore.getState().nodes.find(n => n.id === 'v1')!
+    expect(node.data.status).toBe('done')
+    expect(node.data.outputVideo).toBe('https://cos/v1.mp4')
+  })
+
+  // ── P0-1 RED: each videoGen submits EXACTLY ONCE (no duplicate paid calls) ──
+  it('GAP-VIDEO-2: parallel videoGens submit exactly once each — NO duplicate API calls', async () => {
+    mockSubmitVideo.mockReset()
+    mockQueryTask.mockReset()
+
+    let submitCount = 0
+    mockSubmitVideo.mockImplementation(() => {
+      submitCount += 1
+      return Promise.resolve({ task_id: `task-par-${submitCount}`, status: 'pending' })
+    })
+    mockQueryTask.mockImplementation((taskId: string) =>
+      Promise.resolve({
+        task_id: taskId, status: 'completed', progress: 100,
+        output_url: `https://cos/${taskId}.mp4`,
+      }),
+    )
+
+    injectNode('v1', 'videoGen', { prompt: 'shot 1', model: 'veo3.1-fast' })
+    injectNode('v2', 'videoGen', { prompt: 'shot 2', model: 'veo3.1-fast' })
+    injectNode('v3', 'videoGen', { prompt: 'shot 3', model: 'veo3.1-fast' })
+
+    const results = await Promise.all([executeNode('v1'), executeNode('v2'), executeNode('v3')])
+    expect(results.every(r => r.success)).toBe(true)
+    expect(submitCount, 'each videoGen must submit exactly once').toBe(3)
+
+    const v1 = useFlowStore.getState().nodes.find(n => n.id === 'v1')!
+    expect(v1.data.outputVideo).toBe('https://cos/task-par-1.mp4')
+  })
+
+  // ── P0-2 RED: polling timeout must mark node as `error`, not stuck `generating` ──
+  it('GAP-VIDEO-3: polling timeout marks node as error (NOT stuck generating)', async () => {
+    mockSubmitVideo.mockResolvedValueOnce({ task_id: 'task-stuck', status: 'pending' })
+    // queryTask always returns 'processing' — never completes
+    mockQueryTask.mockReset()
+    mockQueryTask.mockResolvedValue({ task_id: 'task-stuck', status: 'processing', progress: 50 })
+
+    injectNode('vstuck', 'videoGen', { prompt: 'never completes', model: 'veo3.1-fast' })
+    const result = await executeNode('vstuck')
+
+    expect(result.success).toBe(false)
+    expect(result.message).toMatch(/超时|timeout/i)
+
+    const node = useFlowStore.getState().nodes.find(n => n.id === 'vstuck')!
+    expect(node.data.status, 'on timeout, status must transition to error, not remain generating').toBe('error')
+    expect(node.data.errorMsg).toMatch(/超时|timeout/i)
+  })
+
+  // ── P0-1 RED: failed task surfaces failure to caller ──
+  it('GAP-VIDEO-4: failed task returns success=false and surfaces error', async () => {
+    mockSubmitVideo.mockResolvedValueOnce({ task_id: 'task-fail', status: 'pending' })
+    mockQueryTask.mockReset()
+    mockQueryTask.mockResolvedValueOnce({ task_id: 'task-fail', status: 'failed', error: 'GPU OOM' })
+
+    injectNode('vfail', 'videoGen', { prompt: 'will fail', model: 'veo3.1-fast' })
+    const result = await executeNode('vfail')
+
+    expect(result.success).toBe(false)
+    expect(result.message).toContain('GPU OOM')
+
+    const node = useFlowStore.getState().nodes.find(n => n.id === 'vfail')!
+    expect(node.data.status).toBe('error')
   })
 })
 
@@ -257,5 +355,55 @@ describe('executeNode — audioNode', () => {
     expect(result.success).toBe(true)
     const node = useFlowStore.getState().nodes.find(n => n.id === 'a1')!
     expect(node.data.status).toBe('pending')
+  })
+})
+
+// ────────────────────────────────────────────────────────────
+describe('executeNode — characterExtract', () => {
+  beforeEach(reset)
+
+  it('returns failure when no video URL and no task id', async () => {
+    injectNode('ext1', 'characterExtract', {})
+    const result = await executeNode('ext1')
+    expect(result.success).toBe(false)
+    expect(result.message).toContain('视频输入')
+  })
+
+  it('calls /api/character/extract and surfaces URL + id on success', async () => {
+    // Mock the raw api client's post method
+    const apiModule = await import('@/api/client')
+    const postSpy = vi
+      .spyOn(apiModule.api, 'post')
+      .mockResolvedValueOnce({ id: 'char_abc', url: 'https://cos/char.png' })
+
+    injectNode('ext1', 'characterExtract', {
+      videoUrl: 'https://cos/video.mp4',
+      timestamps: '1,3',
+    })
+    const result = await executeNode('ext1')
+    expect(result.success).toBe(true)
+    expect(postSpy).toHaveBeenCalledWith('/api/character/extract', expect.objectContaining({
+      video_url: 'https://cos/video.mp4',
+      timestamps: '1,3',
+    }))
+
+    const node = useFlowStore.getState().nodes.find(n => n.id === 'ext1')!
+    expect(node.data.status).toBe('done')
+    expect(node.data.characterId).toBe('char_abc')
+    expect(node.data.characterUrl).toBe('https://cos/char.png')
+
+    postSpy.mockRestore()
+  })
+})
+
+// ────────────────────────────────────────────────────────────
+describe('executeNode — characterManager (passive registry)', () => {
+  beforeEach(reset)
+
+  it('returns success without calling any API', async () => {
+    injectNode('mgr1', 'characterManager', { characters: [] })
+    const result = await executeNode('mgr1')
+    expect(result.success).toBe(true)
+    expect(result.message).toContain('注册节点')
   })
 })

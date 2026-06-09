@@ -34,7 +34,11 @@ export const ENV = {
   BACKEND_URL: read('VITE_BACKEND_URL', 'http://localhost:8000'),
 
   // ── Agent behavior ──
-  AGENT_MAX_TOOL_ROUNDS:       readNumber('VITE_AGENT_MAX_TOOL_ROUNDS', 25),
+  // Hard safety net for loop iterations. This is NOT the normal stopping point —
+  // the loop controller (agentLoopControl.ts) terminates via token budget, time
+  // budget, tool-call budget, loop detection, and stall detection before this
+  // kicks in. Bumped from 25 (LangGraph default) to 50 for complex tasks.
+  AGENT_MAX_TOOL_ROUNDS:       readNumber('VITE_AGENT_MAX_TOOL_ROUNDS', 50),
   AGENT_TEMPERATURE:           readFloat('VITE_AGENT_TEMPERATURE', 0.3),
   AGENT_MAX_TOKENS:            readNumber('VITE_AGENT_MAX_TOKENS', 16384),
   CONTEXT_COMPACTION_WINDOW:   readNumber('VITE_CONTEXT_COMPACTION_WINDOW', 10),

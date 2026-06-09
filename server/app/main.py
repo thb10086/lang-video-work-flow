@@ -19,7 +19,7 @@ logger = logging.getLogger("prism")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup/shutdown: init DB engine + Redis pool."""
+    """Startup/shutdown: init DB engine + Redis pool + Agent tool registry."""
     logger.info("Starting Prism AI Server...")
     logger.info(f"DB: {settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}")
     logger.info(f"Redis: {settings.REDIS_HOST}:{settings.REDIS_PORT}/{settings.REDIS_DB}")
@@ -27,6 +27,10 @@ async def lifespan(app: FastAPI):
     # Init Redis
     await init_redis()
     logger.info("Redis pool initialized")
+
+    # Populate Agent tool registry (idempotent — safe across hot reloads)
+    from app.agents.tools import register_all_tools
+    register_all_tools()
 
     yield
 
@@ -42,10 +46,22 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS
+# CORS — auto-expand origins so both localhost and 127.0.0.1 variants are
+# always included, preventing preflight 400 errors when the browser uses a
+# different hostname than what the user put in CORS_ORIGINS.
+def _expand_cors_origins(origins: list[str]) -> list[str]:
+    expanded: set[str] = set()
+    for o in origins:
+        expanded.add(o)
+        if "://localhost:" in o:
+            expanded.add(o.replace("://localhost:", "://127.0.0.1:"))
+        elif "://127.0.0.1:" in o:
+            expanded.add(o.replace("://127.0.0.1:", "://localhost:"))
+    return list(expanded)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=_expand_cors_origins(settings.CORS_ORIGINS),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -74,7 +90,9 @@ from app.routers.generate import router as generate_router
 from app.routers.upload import router as upload_router
 from app.routers.tasks import router as tasks_router
 from app.routers.agent_chat import router as agent_chat_router
+from app.routers.agent_runtime import router as agent_runtime_router
 from app.routers.assets import router as assets_router
+from app.routers.verify import router as verify_router
 
 app.include_router(health_router)
 app.include_router(projects_router)
@@ -87,4 +105,6 @@ app.include_router(generate_router)
 app.include_router(upload_router)
 app.include_router(tasks_router)
 app.include_router(agent_chat_router)
+app.include_router(agent_runtime_router)
 app.include_router(assets_router)
+app.include_router(verify_router)

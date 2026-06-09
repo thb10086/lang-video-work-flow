@@ -55,7 +55,7 @@ export default function SegmentedPicker<V extends string = string>({
               disabled={o.disabled}
               title={o.disabled ? o.disabledReason : undefined}
               onClick={() => !o.disabled && onChange(o.value)}
-              className={`${btnCls} px-3 py-1.5 rounded-lg text-[11px] font-medium transition-colors ${
+              className={`${btnCls} nodrag px-3 py-1.5 rounded-lg text-[11px] font-medium transition-colors ${
                 active
                   ? 'bg-[hsl(var(--libtv-accent)/0.18)] text-[hsl(var(--libtv-accent))] ring-1 ring-[hsl(var(--libtv-accent)/0.7)] ring-inset'
                   : 'bg-[hsl(var(--libtv-chip-bg))] text-[hsl(var(--libtv-chip-fg))] hover:bg-[hsl(var(--libtv-chip-bg-hover))]'

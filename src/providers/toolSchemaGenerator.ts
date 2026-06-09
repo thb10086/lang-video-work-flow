@@ -11,6 +11,7 @@
  */
 
 import type { AiModelResponse, ParamFieldDTO } from '@/api/backend'
+import { DEFAULT_VIDEO_MODEL } from '@/providers/modelDefaults'
 
 // ── Types ──
 
@@ -163,7 +164,7 @@ export function buildCreateVideoNodeTool(models: AiModelResponse[]): AgentFuncti
 
   const modelSummary = models.length > 0
     ? models.slice(0, 6).map(m => m.model_id).join(' / ') + (models.length > 6 ? ' ...' : '')
-    : 'doubao-seedance-2-0'
+    : DEFAULT_VIDEO_MODEL
 
   return {
     type: 'function',

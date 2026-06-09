@@ -1,0 +1,76 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - button "节点面板 (Ctrl+B)" [ref=e6] [cursor=pointer]:
+        - img [ref=e7]
+      - generic [ref=e10]: P
+      - heading "Prism AI" [level=1] [ref=e11]
+      - generic [ref=e12]: v0.4
+    - generic [ref=e13]:
+      - button "模板" [ref=e14] [cursor=pointer]:
+        - img [ref=e15]
+        - text: 模板
+      - button "素材" [ref=e19] [cursor=pointer]:
+        - img [ref=e20]
+        - text: 素材
+      - button "导入" [ref=e22] [cursor=pointer]:
+        - img [ref=e23]
+        - text: 导入
+      - button "导出" [ref=e26] [cursor=pointer]:
+        - img [ref=e27]
+        - text: 导出
+      - button "运行" [ref=e31] [cursor=pointer]:
+        - img [ref=e32]
+        - text: 运行
+      - button "Agent (Ctrl+J)" [ref=e35] [cursor=pointer]:
+        - img [ref=e36]
+      - button "设置" [ref=e38] [cursor=pointer]:
+        - img [ref=e39]
+      - button "全屏 (Ctrl+Shift+F)" [ref=e42] [cursor=pointer]:
+        - img [ref=e43]
+  - generic [ref=e51]:
+    - generic [ref=e52]:
+      - generic [ref=e53]:
+        - button "点阵" [ref=e54] [cursor=pointer]:
+          - img [ref=e55]
+        - button "线格" [ref=e57] [cursor=pointer]:
+          - img [ref=e58]
+        - button "十字" [ref=e60] [cursor=pointer]:
+          - img [ref=e61]
+        - button "无" [ref=e64] [cursor=pointer]:
+          - img [ref=e65]
+      - generic [ref=e68]:
+        - generic [ref=e69]: 间距
+        - button "10" [ref=e70] [cursor=pointer]
+        - button "15" [ref=e71] [cursor=pointer]
+        - button "20" [ref=e72] [cursor=pointer]
+        - button "25" [ref=e73] [cursor=pointer]
+        - button "30" [ref=e74] [cursor=pointer]
+      - button "吸附开启" [ref=e75] [cursor=pointer]:
+        - img [ref=e76]
+      - generic [ref=e79]:
+        - button "缩小" [ref=e80] [cursor=pointer]:
+          - img [ref=e81]
+        - button "适应视图" [ref=e82] [cursor=pointer]:
+          - img [ref=e83]
+        - button "放大" [ref=e88] [cursor=pointer]:
+          - img [ref=e89]
+      - generic [ref=e90]:
+        - button "浅色主题" [ref=e91] [cursor=pointer]:
+          - img [ref=e92]
+        - button "深色主题" [ref=e98] [cursor=pointer]:
+          - img [ref=e99]
+        - button "跟随系统" [ref=e101] [cursor=pointer]:
+          - img [ref=e102]
+    - application [ref=e104]:
+      - img
+      - generic "Control Panel" [ref=e107]:
+        - button "Zoom In" [ref=e108] [cursor=pointer]:
+          - img [ref=e109]
+        - button "Zoom Out" [ref=e111] [cursor=pointer]:
+          - img [ref=e112]
+        - button "Fit View" [ref=e114] [cursor=pointer]:
+          - img [ref=e115]
+        - button "Toggle Interactivity" [ref=e117] [cursor=pointer]:
+          - img [ref=e118]
+      - img "Mini Map" [ref=e121]

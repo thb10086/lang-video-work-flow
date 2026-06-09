@@ -1,0 +1,199 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - button "节点面板 (Ctrl+B)" [ref=e6] [cursor=pointer]:
+        - img [ref=e7]
+      - generic [ref=e10]: P
+      - heading "Prism AI" [level=1] [ref=e11]
+      - generic [ref=e12]: v0.4
+    - generic [ref=e13]:
+      - button "模板" [ref=e14] [cursor=pointer]:
+        - img [ref=e15]
+        - text: 模板
+      - button "素材" [ref=e19] [cursor=pointer]:
+        - img [ref=e20]
+        - text: 素材
+      - button "导入" [ref=e22] [cursor=pointer]:
+        - img [ref=e23]
+        - text: 导入
+      - button "导出" [ref=e26] [cursor=pointer]:
+        - img [ref=e27]
+        - text: 导出
+      - button "运行" [ref=e31] [cursor=pointer]:
+        - img [ref=e32]
+        - text: 运行
+      - button "Agent (Ctrl+J)" [ref=e35] [cursor=pointer]:
+        - img [ref=e36]
+      - button "设置" [ref=e38] [cursor=pointer]:
+        - img [ref=e39]
+      - button "全屏 (Ctrl+Shift+F)" [ref=e42] [cursor=pointer]:
+        - img [ref=e43]
+  - generic [ref=e48]:
+    - generic [ref=e123]:
+      - generic [ref=e124]:
+        - heading "节点面板" [level=2] [ref=e125]
+        - paragraph [ref=e126]: 拖拽节点到画布
+      - generic [ref=e127]:
+        - generic [ref=e128]:
+          - img [ref=e130]
+          - generic [ref=e133]:
+            - paragraph [ref=e134]: 角色九宫图
+            - paragraph [ref=e135]: Gemini 生成单张角色参考图
+        - generic [ref=e136]:
+          - img [ref=e138]
+          - generic [ref=e140]:
+            - paragraph [ref=e141]: 场景九宫图
+            - paragraph [ref=e142]: Gemini 生成单张场景参考图
+        - generic [ref=e143]:
+          - img [ref=e145]
+          - generic [ref=e150]:
+            - paragraph [ref=e151]: 分镜拼贴图
+            - paragraph [ref=e152]: 一张图含 4/6/9 帧拼贴（剧情推演 / 动作分解 / 多机位）
+        - generic [ref=e153]:
+          - img [ref=e155]
+          - generic [ref=e159]:
+            - paragraph [ref=e160]: 图片生成
+            - paragraph [ref=e161]: 多模型图片生成
+        - generic [ref=e162]:
+          - img [ref=e164]
+          - generic [ref=e167]:
+            - paragraph [ref=e168]: 视频生成
+            - paragraph [ref=e169]: 多模型视频生成
+        - generic [ref=e170]:
+          - img [ref=e172]
+          - generic [ref=e175]:
+            - paragraph [ref=e176]: 文本/脚本
+            - paragraph [ref=e177]: 脚本 / 对话 / 旁白
+        - generic [ref=e178]:
+          - img [ref=e180]
+          - generic [ref=e184]:
+            - paragraph [ref=e185]: 音频生成
+            - paragraph [ref=e186]: TTS 语音合成
+        - generic [ref=e187]:
+          - img [ref=e189]
+          - generic [ref=e191]:
+            - paragraph [ref=e192]: LLM 对话
+            - paragraph [ref=e193]: 大模型对话推理
+        - generic [ref=e194]:
+          - img [ref=e196]
+          - generic [ref=e200]:
+            - paragraph [ref=e201]: 角色提取
+            - paragraph [ref=e202]: 视频中提取角色形象
+        - generic [ref=e203]:
+          - img [ref=e205]
+          - generic [ref=e207]:
+            - paragraph [ref=e208]: 分镜脚本
+            - paragraph [ref=e209]: AI 拆解剧本为分镜
+        - generic [ref=e210]:
+          - img [ref=e212]
+          - generic [ref=e217]:
+            - paragraph [ref=e218]: 角色管理器
+            - paragraph [ref=e219]: 统一管理角色形象
+        - generic [ref=e220]:
+          - img [ref=e222]
+          - generic [ref=e228]:
+            - paragraph [ref=e229]: 风格锁定
+            - paragraph [ref=e230]: 提取并锁定画面风格
+        - generic [ref=e231]:
+          - img [ref=e233]
+          - generic [ref=e240]:
+            - paragraph [ref=e241]: 连续性检查
+            - paragraph [ref=e242]: 检测镜头间一致性
+        - generic [ref=e243]:
+          - img [ref=e245]
+          - generic [ref=e250]:
+            - paragraph [ref=e251]: 视频拼接
+            - paragraph [ref=e252]: 多段视频合并拼接
+        - generic [ref=e253]:
+          - img [ref=e255]
+          - generic [ref=e258]:
+            - paragraph [ref=e259]: 图片编辑
+            - paragraph [ref=e260]: 编辑 / 换背景 / 局部修改
+        - generic [ref=e261]:
+          - img [ref=e263]
+          - generic [ref=e267]:
+            - paragraph [ref=e268]: 时间轴
+            - paragraph [ref=e269]: 多轨道时间轴 — 计算剪切点 + 输出 cuts
+      - paragraph [ref=e271]: AI Video Workflow Studio v0.4
+    - generic [ref=e51]:
+      - generic [ref=e52]:
+        - generic [ref=e53]:
+          - button "点阵" [ref=e54] [cursor=pointer]:
+            - img [ref=e55]
+          - button "线格" [ref=e57] [cursor=pointer]:
+            - img [ref=e58]
+          - button "十字" [ref=e60] [cursor=pointer]:
+            - img [ref=e61]
+          - button "无" [ref=e64] [cursor=pointer]:
+            - img [ref=e65]
+        - generic [ref=e68]:
+          - generic [ref=e69]: 间距
+          - button "10" [ref=e70] [cursor=pointer]
+          - button "15" [ref=e71] [cursor=pointer]
+          - button "20" [ref=e72] [cursor=pointer]
+          - button "25" [ref=e73] [cursor=pointer]
+          - button "30" [ref=e74] [cursor=pointer]
+        - button "吸附开启" [ref=e75] [cursor=pointer]:
+          - img [ref=e76]
+        - generic [ref=e79]:
+          - button "缩小" [ref=e80] [cursor=pointer]:
+            - img [ref=e81]
+          - button "适应视图" [ref=e82] [cursor=pointer]:
+            - img [ref=e83]
+          - button "放大" [ref=e88] [cursor=pointer]:
+            - img [ref=e89]
+        - generic [ref=e90]:
+          - button "浅色主题" [ref=e91] [cursor=pointer]:
+            - img [ref=e92]
+          - button "深色主题" [ref=e98] [cursor=pointer]:
+            - img [ref=e99]
+          - button "跟随系统" [ref=e101] [cursor=pointer]:
+            - img [ref=e102]
+      - application [ref=e104]:
+        - group [ref=e1367]:
+          - generic [ref=e1368]:
+            - generic [ref=e1369]:
+              - img [ref=e1371]
+              - generic [ref=e1376]: "分镜: 决战时刻"
+              - generic [ref=e1379]: 6格
+            - generic [ref=e1380]:
+              - button "Connect upstream node" [ref=e1381] [cursor=pointer]:
+                - img [ref=e1382]
+              - button "Connect downstream node" [ref=e1383] [cursor=pointer]:
+                - img [ref=e1384]
+              - generic [ref=e1387]:
+                - img [ref=e1392]
+                - generic [ref=e1397]:
+                  - textbox "镜头名（例：shot-3-revenge）" [ref=e1398]: 决战时刻
+                  - textbox "镜头描述：动作 / 环境 / 角色 / 镜头运动..." [ref=e1399]: 英雄在雨夜中举枪对峙，闪电划过天际，主角脸上的雨水与决意
+                - generic [ref=e1400]:
+                  - generic [ref=e1401]:
+                    - button "剧情推演" [ref=e1403] [cursor=pointer]:
+                      - img [ref=e1404]
+                      - generic [ref=e1407]: 剧情推演
+                      - img [ref=e1408]
+                    - button "六宫格" [ref=e1411] [cursor=pointer]:
+                      - img [ref=e1412]
+                      - generic [ref=e1414]: 六宫格
+                      - img [ref=e1415]
+                    - button "黑色" [ref=e1418] [cursor=pointer]:
+                      - img [ref=e1419]
+                      - generic [ref=e1425]: 黑色
+                      - img [ref=e1426]
+                    - button "紧张" [ref=e1429] [cursor=pointer]:
+                      - img [ref=e1430]
+                      - generic [ref=e1432]: 紧张
+                      - img [ref=e1433]
+                  - button "Submit" [ref=e1436] [cursor=pointer]:
+                    - img [ref=e1437]
+        - img
+        - generic "Control Panel" [ref=e107]:
+          - button "Zoom In" [ref=e108] [cursor=pointer]:
+            - img [ref=e109]
+          - button "Zoom Out" [ref=e111] [cursor=pointer]:
+            - img [ref=e112]
+          - button "Fit View" [active] [ref=e114] [cursor=pointer]:
+            - img [ref=e115]
+          - button "Toggle Interactivity" [ref=e117] [cursor=pointer]:
+            - img [ref=e118]
+        - img "Mini Map" [ref=e121]

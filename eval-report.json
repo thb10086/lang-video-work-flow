@@ -1,0 +1,457 @@
+{
+  "generatedAt": "2026-05-14T02:17:35.574Z",
+  "scenarios": [
+    {
+      "id": "01-product-ad",
+      "name": "Product Ad One-Shot",
+      "passed": true,
+      "score": 100,
+      "toolCallCount": 4,
+      "tokensUsed": 174,
+      "toolResponseTokens": 152,
+      "elapsedMs": 6,
+      "timeToFirstEventMs": 3,
+      "timeToFirstToolCallMs": 3,
+      "meanEventIntervalMs": 1,
+      "issues": [],
+      "overBudget": {
+        "toolCalls": false,
+        "tokens": false,
+        "elapsed": false
+      },
+      "toolLog": [
+        {
+          "tool": "classify_image",
+          "args": {
+            "imageIndex": 0
+          },
+          "success": true,
+          "message": "图片分析完成但无法解析分类结果。LLM 原始回复: mock llm output",
+          "roundIndex": 0,
+          "elapsedMs": 0
+        },
+        {
+          "tool": "detect_scenario",
+          "args": {
+            "description": "15 秒护肤品广告，补水修护，清新极简，带 logo"
+          },
+          "success": true,
+          "message": "识别场景: 产品广告/电商 (product_ad)\n推荐Pipeline: 产品图(imageGen) → 使用场景(imageGen) → 品牌风格锁定 → 视频(产品展示+场景+Logo) → 合成\n匹配模板: ad-product\n建议: 重点: 产品特写 + 品牌一致性。建议用户上传产品实拍图作为首帧参考。风格推荐 realistic/cinematic。\n\n下一步建议:\n1. 使用 plan_task 制定详细执行计划\n2. 使用 generate_workflow 快速搭建「产品广告/电商」Pipeline，或逐步创建节点\n3. 填充真实内容后逐步执行",
+          "roundIndex": 1,
+          "elapsedMs": 0
+        },
+        {
+          "tool": "generate_workflow",
+          "args": {
+            "title": "护肤品广告",
+            "description": "15s 补水修护护肤品广告，清新极简风格，结尾品牌 Logo",
+            "scenario": "product_ad",
+            "characterNames": [],
+            "characterDescriptions": [],
+            "sceneNames": [
+              "产品特写",
+              "Logo 收尾"
+            ],
+            "sceneDescriptions": [
+              "Close-up of the skincare bottle on a marble counter with soft natural light, minimalistic aesthetic",
+              "Clean white background with brand logo centered"
+            ],
+            "shotCount": 3,
+            "shotPrompts": [
+              "Skincare bottle close-up, soft natural lighting, minimal composition, cinematic 4k",
+              "Water droplet hitting skin surface, slow motion, hydration shot, macro lens",
+              "Brand logo on clean white background, elegant typography"
+            ],
+            "videoPrompts": [
+              "Slow dolly-in on bottle. Natural light. Clean and calm. Cinematic 4K. No morphing.",
+              "Macro slow motion of water droplet. Ultra smooth. Cinematic 4K.",
+              "Static hold on logo. Clean. 4K."
+            ],
+            "styleDescription": "Clean minimalistic skincare commercial, soft natural light, calm atmosphere"
+          },
+          "success": true,
+          "message": "已生成「护肤品广告」工作流：[产品广告] 3 个镜头 × 12s = 36s，品牌风格锁定。共 8 个节点, 9 条连线。",
+          "roundIndex": 2,
+          "elapsedMs": 1
+        },
+        {
+          "tool": "verify_task",
+          "args": {
+            "checkConnections": true
+          },
+          "success": true,
+          "message": "画布质量评分: 100/100\n节点 8 | 连线 9 | 状态: done=1, idle=7\n通过 (5): 节点数: 8 | 无孤立节点 | 提示词语言: 全部英文 (6 节点) | 字段完整性: 所有关键字段已填充 | 视频时长: 3 节点均在合理范围\n所有检查项通过。",
+          "roundIndex": 3,
+          "elapsedMs": 1
+        }
+      ]
+    },
+    {
+      "id": "02-short-story",
+      "name": "Three-Shot Cyberpunk Short",
+      "passed": true,
+      "score": 100,
+      "toolCallCount": 3,
+      "tokensUsed": 129,
+      "toolResponseTokens": 99,
+      "elapsedMs": 4,
+      "timeToFirstEventMs": 1,
+      "timeToFirstToolCallMs": 1,
+      "meanEventIntervalMs": 1,
+      "issues": [],
+      "overBudget": {
+        "toolCalls": false,
+        "tokens": false,
+        "elapsed": false
+      },
+      "toolLog": [
+        {
+          "tool": "plan_task",
+          "args": {
+            "goal": "创建赛博朋克 3 镜头短片",
+            "steps": [
+              "生成完整工作流骨架",
+              "执行关键帧",
+              "提交视频生成",
+              "自检画布质量"
+            ]
+          },
+          "success": true,
+          "message": "已创建任务计划「创建赛博朋克 3 镜头短片」，共 4 步:\n  0. 生成完整工作流骨架\n  1. 执行关键帧\n  2. 提交视频生成\n  3. 自检画布质量",
+          "roundIndex": 0,
+          "elapsedMs": 0
+        },
+        {
+          "tool": "generate_workflow",
+          "args": {
+            "title": "霓虹雨夜 · 林夏",
+            "description": "赛博朋克风 3 镜头短片，主角林夏穿越东京街头，最后在天台俯瞰",
+            "scenario": "short_drama",
+            "characterNames": [
+              "林夏"
+            ],
+            "characterDescriptions": [
+              "Lin Xia: young Asian woman, crimson red shoulder-length hair, sharp eyes, black leather jacket, dark cyberpunk aesthetic"
+            ],
+            "sceneNames": [
+              "霓虹街",
+              "东京天台"
+            ],
+            "sceneDescriptions": [
+              "Tokyo neon-lit alley under heavy rain, reflective wet asphalt, purple and cyan holograms on buildings",
+              "Rooftop at night overlooking Tokyo cityscape, distant neon billboards, light drizzle"
+            ],
+            "shotCount": 3,
+            "shotPrompts": [
+              "Cyberpunk Tokyo alley, rainy neon-lit street, Lin Xia with crimson red hair and black leather jacket walking toward camera, reflective wet asphalt, cinematic 4k",
+              "Medium shot, Lin Xia (crimson red hair, black leather jacket) pausing under holographic signs, sharp eyes, neon reflections on face",
+              "Wide shot, Lin Xia (crimson red hair, black leather jacket) on rooftop overlooking Tokyo cityscape, rain and neon, cinematic composition, 4k"
+            ],
+            "videoPrompts": [
+              "Slow tracking push-in. Lin Xia walks forward. Neon reflections. Cinematic 4K. No morphing.",
+              "Static medium shot. Subtle head turn. Neon lighting dynamic. 4K.",
+              "Slow pull-back reveal of cityscape behind character. 4K."
+            ],
+            "styleDescription": "Cyberpunk neon-noir, cold cyan and magenta palette, heavy rain, cinematic film grain"
+          },
+          "success": true,
+          "message": "已生成「霓虹雨夜 · 林夏」工作流：1 角色(写实)+角色库, 2 场景, 3 镜头, 风格锁定→角色→角色库→场景→分镜→合成。3 个素材入库, 共 14 个节点, 20 条连线。",
+          "roundIndex": 1,
+          "elapsedMs": 2
+        },
+        {
+          "tool": "verify_task",
+          "args": {
+            "checkConnections": true,
+            "expectedNodes": 8
+          },
+          "success": true,
+          "message": "画布质量评分: 100/100\n节点 14 | 连线 20 | 状态: idle=13, done=1\n通过 (6): 节点数: 14/8 | 无孤立节点 | 提示词语言: 全部英文 (6 节点) | 角色外貌一致性: 1 角色, 提示词均含外貌关键词 | 字段完整性: 所有关键字段已填充 | 视频时长: 3 节点均在合理范围\n所有检查项通过。",
+          "roundIndex": 2,
+          "elapsedMs": 0
+        }
+      ]
+    },
+    {
+      "id": "03-character-fix",
+      "name": "Update Character Appearance",
+      "passed": true,
+      "score": 100,
+      "toolCallCount": 2,
+      "tokensUsed": 58,
+      "toolResponseTokens": 47,
+      "elapsedMs": 1,
+      "timeToFirstEventMs": 1,
+      "timeToFirstToolCallMs": 1,
+      "meanEventIntervalMs": 0,
+      "issues": [],
+      "overBudget": {
+        "toolCalls": false,
+        "tokens": false,
+        "elapsed": false
+      },
+      "toolLog": [
+        {
+          "tool": "get_canvas_state",
+          "args": {},
+          "success": true,
+          "message": "{\"nodeCount\":1,\"edgeCount\":0,\"nodes\":[{\"id\":\"char_linxia\",\"type\":\"characterGrid\",\"status\":\"success\",\"label\":\"角色: 林夏\"}],\"edges\":[]}",
+          "roundIndex": 0,
+          "elapsedMs": 1
+        },
+        {
+          "tool": "update_node",
+          "args": {
+            "nodeId": "char_linxia",
+            "updates": {
+              "description": "Lin Xia: young Asian woman, platinum white shoulder-length hair, sharp eyes, black leather jacket, cyberpunk aesthetic"
+            }
+          },
+          "success": true,
+          "message": "已更新节点「角色: 林夏」的字段: description",
+          "roundIndex": 1,
+          "elapsedMs": 0
+        }
+      ]
+    },
+    {
+      "id": "04-batch-execute",
+      "name": "Direct Image Node Creation",
+      "passed": true,
+      "score": 100,
+      "toolCallCount": 1,
+      "tokensUsed": 33,
+      "toolResponseTokens": 7,
+      "elapsedMs": 1,
+      "timeToFirstEventMs": 1,
+      "timeToFirstToolCallMs": 1,
+      "meanEventIntervalMs": 0,
+      "issues": [],
+      "overBudget": {
+        "toolCalls": false,
+        "tokens": false,
+        "elapsed": false
+      },
+      "toolLog": [
+        {
+          "tool": "create_image_node",
+          "args": {
+            "prompt": "sunset over the ocean",
+            "aspectRatio": "16:9"
+          },
+          "success": true,
+          "message": "已创建图片生成节点 (gpt-image-2)",
+          "roundIndex": 0,
+          "elapsedMs": 1
+        }
+      ]
+    },
+    {
+      "id": "08-discover-tools",
+      "name": "Discover Tools — Tier-3 Reveal",
+      "passed": true,
+      "score": 100,
+      "toolCallCount": 1,
+      "tokensUsed": 1213,
+      "toolResponseTokens": 1195,
+      "elapsedMs": 1,
+      "timeToFirstEventMs": 0,
+      "timeToFirstToolCallMs": 0,
+      "meanEventIntervalMs": 0,
+      "issues": [],
+      "overBudget": {
+        "toolCalls": false,
+        "tokens": false,
+        "elapsed": false
+      },
+      "toolLog": [
+        {
+          "tool": "discover_tools",
+          "args": {
+            "keyword": "delete"
+          },
+          "success": true,
+          "message": "发现 27 个工具 · 总计: Tier1=10 Tier2=17 Tier3=21\n\n[{\"name\":\"create_character_grid\",\"tier\":\"tier2\",\"description\":\"在画布上创建角色九宫图节点，用于生成角色多视角参考图。前置条件：必须提供 name 和 description（含发色/服装/体型等外貌关键词），否则后续 imageGen 会缺少角色锚定。创建后需 execute_node 执行生成。\"},{\"name\":\"create_scene_grid\",\"tier\":\"tier2\",\"description\":\"在画布上创建场景九宫图节点，用于生成场景多角度参考图。前置条件：必须提供 name 和 description（含环境/光照/氛围），否则生成效果差。创建后需 execute_node 执行生成。\"},{\"name\":\"create_image_node\",\"tier\":\"tier2\",\"description\":\"在画布上创建图片生成节点（Gemini API）。提示词必须用英文，包含角色外貌关键词。创建后用 connect_nodes 连接参考图，再 execute_node 执行。如需优化提示词，用 optimize_prompt 而非手动修改。\"},{\"name\":\"create_video_node\",\"tier\":\"tier2\",\"description\":\"在画布上创建视频生成节点。可选模型：sora-2-vvip / sora-2-official / veo3.1-fast / veo3.1-lite / kling-v2-6 / grok-video-3 / wan2.6-flash /\"},{\"name\":\"create_llm_node\",\"tier\":\"tier2\",\"description\":\"在画布上创建LLM对话节点\"},{\"name\":\"create_text_node\",\"tier\":\"tier2\",\"description\":\"在画布上创建文本/脚本节点\"},{\"name\":\"connect_nodes\",\"tier\":\"tier1\",\"description\":\"连接两个节点的端口。系统自动根据节点类型解析正确的 handle（如 characterGrid→grid-out, imageGen→ref-in）。前置条件：两个节点必须已存在于画布上。\"},{\"name\":\"create_audio_node\",\"tier\":\"tier2\",\"description\":\"在画布上创建音频/配音节点（支持 elevenlabs / fish-speech / cosyvoice）\"},{\"name\":\"create_storyboard_node\",\"tier\":\"tier2\",\"description\":\"在画布上创建分镜脚本节点，用于AI拆解剧本为分镜列表\"},{\"name\":\"create_character_extract_node\",\"tier\":\"tier2\",\"description\":\"从视频中提取角色为可复用的角色引用。通常连接上游 videoGen 的输出，执行时调用 Sora/Seedance 角色提取 API。提取结果可连接到 characterManager 或直接到 videoGen 的 character-i\"},{\"name\":\"create_character_manager_node\",\"tier\":\"tier2\",\"description\":\"创建角色管理器节点，作为画布级的角色库（name/description/characterUrl 列表）。下游的 imageGen/videoGen 可用 @角色名 引用其中的角色。可接多个 characterGrid/character\"},{\"name\":\"create_style_lock_node\",\"tier\":\"tier2\",\"description\":\"在画布上创建风格锁定节点，用于提取参考图风格特征并注入下游节点\"},{\"name\":\"create_image_edit_node\",\"tier\":\"tier2\",\"description\":\"在画布上创建图片编辑节点（Gemini原生编辑：换背景/加元素/修改细节）\"},{\"name\":\"create_from_images\",\"tier\":\"tier2\",\"description\":\"根据用户本轮上传的多张图片，自动分类并批量创建合适节点（角色九宫图 / 场景九宫图 / 风格锁定 / 图片编辑）。每张图独立判定 character/scene/style/edit_input 并挂到对应节点的参考图字段。一次最多处理 1\"},{\"name\":\"create_video_stitch_node\",\"tier\":\"tier2\",\"description\":\"在画布上创建视频拼接节点，用于将多段视频合并为完整短片。需连接多个视频生成节点的输出。执行时自动收集上游已完成的视频。\"},{\"name\":\"create_continuity_check_node\",\"tier\":\"tier2\",\"description\":\"在画布上创建连续性检查节点，用于AI检查相邻镜头之间角色/光照/色调/场景的视觉一致性\"},{\"name\":\"create_timeline_node\",\"tier\":\"tier2\",\"description\":\"在画布上创建时间轴节点，用于将多个视频/音频片段编排为带剪切点的完整时间轴。执行时自动按上游 x 坐标排序、计算总时长 + cuts 列表，输出标准 timeline JSON 给下游 stitch / 渲染节点。\"},{\"name\":\"generate_workflow\",\"tier\":\"tier1\",\"description\":\"【核心工具】根据用户创意描述，一键生成完整的AI视频制作工作流。支持6种场景模式(漫剧/产品广告/探店/教程/短剧/MV)。前置条件：必须先调用 detect_scenario 确定场景类型。禁止：不要留空任何 prompt/descrip\"},{\"name\":\"set_phase\",\"tier\":\"tier1\",\"description\":\"【阶段切换】自我声明当前工作阶段。阶段影响工具可用性（例如 planning 禁用 create_*_node，reviewing 禁用 delete_node）。典型序列：planning → designing → building →\"},{\"name\":\"verify_task\",\"tier\":\"tier1\",\"description\":\"【自我验证】全面检查当前画布状态，返回 0-100 质量评分。检查维度：节点数量、连线完整性、提示词语言(英文)、角色外貌一致性、字段完整性、视频时长合理性、孤立节点。使用时机：在所有 plan_task 步骤执行完毕后必须调用此工具进行自\"},{\"name\":\"update_node\",\"tier\":\"tier1\",\"description\":\"更新画布上已有节点的数据字段。通过 nodeLabel（模糊匹配）或 nodeId（精确匹配）定位节点。若同名节点有多个，先用 get_canvas_state 获取节点 ID，再用 nodeId 精确定位。可修改字段：prompt、des\"},{\"name\":\"delete_node\",\"tier\":\"tier2\",\"description\":\"删除画布上的节点及其所有连线。通过节点标签名或精确 ID 定位。⚠️ 不可逆操作：删除前确认该节点无下游依赖节点，否则下游节点的输入会断开。建议先用 get_canvas_state 查看连线关系。\"},{\"name\":\"execute_node\",\"tier\":\"tier1\",\"description\":\"触发画布上单个节点的生成/执行操作。支持类型：characterGrid/sceneGrid/imageGen/videoGen/storyboard/styleLock/llmChat/imageEdit/continuityCheck/\"},{\"name\":\"parallel_execute\",\"tier\":\"tier1\",\"description\":\"【性能优化】同时并行执行多个相互独立的节点，大幅缩短总执行时间。适用于同一阶段的无依赖节点，例如：8个关键帧图片生成（可同时启动）、8个视频生成（可同时提交）。注意：有依赖关系的节点不要并行（如 characterGrid 必须在 imag\"},{\"name\":\"get_canvas_state\",\"tier\":\"tier1\",\"description\":\"获取画布当前完整状态：所有节点（含 id/type/label/status/关键字段）和连线关系。用于了解当前工作流构成、消除同名歧义（获取精确 nodeId）。避免频繁调用——结果已含完整信息，一次调用后缓存在对话上下文中即可。\"},{\"name\":\"detect_scenario\",\"tier\":\"tier1\",\"description\":\"【场景识别】分析用户描述，识别视频制作场景类型（漫剧/产品广告/探店/教程/短剧/MV），并推荐最佳制作Pipeline和匹配模板。使用时机：收到用户创作需求后第一时间调用，必须在 generate_workflow 之前调用。结果中的 s\"},{\"name\":\"discover_tools\",\"tier\":\"tier1\",\"description\":\"【元工具】按需查询当前会话未直接暴露的工具。默认 Agent 看到精简的 Tier 1+2 工具；如需使用记忆/素材库/优化等高级工具，先用此工具检索，再按返回 schema 调用。query 匹配工具 name/description 子\"}]",
+          "roundIndex": 0,
+          "elapsedMs": 0
+        }
+      ]
+    },
+    {
+      "id": "11-vision-accept",
+      "name": "Vision Verify — Accept (high matchScore)",
+      "passed": true,
+      "score": 100,
+      "toolCallCount": 2,
+      "tokensUsed": 162,
+      "toolResponseTokens": 137,
+      "elapsedMs": 1,
+      "timeToFirstEventMs": 0,
+      "timeToFirstToolCallMs": 0,
+      "meanEventIntervalMs": 1,
+      "issues": [],
+      "overBudget": {
+        "toolCalls": false,
+        "tokens": false,
+        "elapsed": false
+      },
+      "toolLog": [
+        {
+          "tool": "get_canvas_state",
+          "args": {},
+          "success": true,
+          "message": "{\"nodeCount\":1,\"edgeCount\":0,\"nodes\":[{\"id\":\"img_shot1\",\"type\":\"imageGen\",\"status\":\"success\",\"label\":\"镜头1 关键帧\"}],\"edges\":[]}",
+          "roundIndex": 0,
+          "elapsedMs": 0
+        },
+        {
+          "tool": "verify_image_semantic",
+          "args": {
+            "nodeId": "img_shot1",
+            "expectedSubjects": [
+              "character Lin Xia",
+              "cyberpunk rooftop at night"
+            ],
+            "threshold": 70
+          },
+          "success": true,
+          "message": "[通过] 镜头1 关键帧 — matchScore=92/100\n林夏特征清晰，屋顶赛博朋克风格明显\n\n{\n  \"nodeId\": \"img_shot1\",\n  \"nodeLabel\": \"镜头1 关键帧\",\n  \"adapter\": \"gemini-vision\",\n  \"matchScore\": 92,\n  \"detectedSubjects\": [\n    \"character Lin Xia\",\n    \"cyberpunk rooftop\"\n  ],\n  \"missingElements\": [],\n  \"unexpectedElements\": [],\n  \"recommendation\": \"accept\",\n  \"reasoning\": \"林夏特征清晰，屋顶赛博朋克风格明显\"\n}",
+          "roundIndex": 1,
+          "elapsedMs": 1
+        }
+      ]
+    },
+    {
+      "id": "12-vision-retry",
+      "name": "Vision Verify — Retry (score below threshold)",
+      "passed": true,
+      "score": 100,
+      "toolCallCount": 3,
+      "tokensUsed": 183,
+      "toolResponseTokens": 163,
+      "elapsedMs": 41,
+      "timeToFirstEventMs": 0,
+      "timeToFirstToolCallMs": 0,
+      "meanEventIntervalMs": 21,
+      "issues": [],
+      "overBudget": {
+        "toolCalls": false,
+        "tokens": false,
+        "elapsed": false
+      },
+      "toolLog": [
+        {
+          "tool": "get_canvas_state",
+          "args": {},
+          "success": true,
+          "message": "{\"nodeCount\":1,\"edgeCount\":0,\"nodes\":[{\"id\":\"img_shot2\",\"type\":\"imageGen\",\"status\":\"success\",\"label\":\"镜头2 关键帧\"}],\"edges\":[]}",
+          "roundIndex": 0,
+          "elapsedMs": 0
+        },
+        {
+          "tool": "verify_image_semantic",
+          "args": {
+            "nodeId": "img_shot2",
+            "expectedSubjects": [
+              "cyberpunk street at night",
+              "neon signs",
+              "rain"
+            ],
+            "threshold": 70
+          },
+          "success": true,
+          "message": "[需重试] 镜头2 关键帧 — matchScore=55/100\n画面为白天街景，缺失霓虹、雨夜氛围\n\n{\n  \"nodeId\": \"img_shot2\",\n  \"nodeLabel\": \"镜头2 关键帧\",\n  \"adapter\": \"gemini-vision\",\n  \"matchScore\": 55,\n  \"detectedSubjects\": [\n    \"daytime urban scene\"\n  ],\n  \"missingElements\": [\n    \"cyberpunk neon signs\",\n    \"night atmosphere\",\n    \"rain\"\n  ],\n  \"unexpectedElements\": [\n    \"daylight\"\n  ],\n  \"recommendation\": \"retry\",\n  \"reasoning\": \"画面为白天街景，缺失霓虹、雨夜氛围\"\n}",
+          "roundIndex": 1,
+          "elapsedMs": 0
+        },
+        {
+          "tool": "retry_node",
+          "args": {
+            "nodeId": "img_shot2"
+          },
+          "success": true,
+          "message": "重试节点「镜头2 关键帧」: 图片「镜头2 关键帧」生成完成",
+          "roundIndex": 2,
+          "elapsedMs": 41
+        }
+      ]
+    },
+    {
+      "id": "13-vision-edit-prompt",
+      "name": "Vision Verify — Edit Prompt (severe mismatch)",
+      "passed": true,
+      "score": 100,
+      "toolCallCount": 4,
+      "tokensUsed": 225,
+      "toolResponseTokens": 195,
+      "elapsedMs": 1,
+      "timeToFirstEventMs": 1,
+      "timeToFirstToolCallMs": 1,
+      "meanEventIntervalMs": 0,
+      "issues": [],
+      "overBudget": {
+        "toolCalls": false,
+        "tokens": false,
+        "elapsed": false
+      },
+      "toolLog": [
+        {
+          "tool": "get_canvas_state",
+          "args": {},
+          "success": true,
+          "message": "{\"nodeCount\":1,\"edgeCount\":0,\"nodes\":[{\"id\":\"img_shot3\",\"type\":\"imageGen\",\"status\":\"success\",\"label\":\"镜头3 关键帧\"}],\"edges\":[]}",
+          "roundIndex": 0,
+          "elapsedMs": 0
+        },
+        {
+          "tool": "verify_image_semantic",
+          "args": {
+            "nodeId": "img_shot3",
+            "expectedSubjects": [
+              "rooftop overlooking city",
+              "night",
+              "wide shot"
+            ],
+            "threshold": 70
+          },
+          "success": true,
+          "message": "[需改 prompt] 镜头3 关键帧 — matchScore=25/100\n提示词过于模糊，画面与剧本严重不符\n\n{\n  \"nodeId\": \"img_shot3\",\n  \"nodeLabel\": \"镜头3 关键帧\",\n  \"adapter\": \"gemini-vision\",\n  \"matchScore\": 25,\n  \"detectedSubjects\": [\n    \"person\",\n    \"generic building\",\n    \"daylight\"\n  ],\n  \"missingElements\": [\n    \"rooftop perspective\",\n    \"night atmosphere\",\n    \"city skyline wide shot\"\n  ],\n  \"unexpectedElements\": [\n    \"daylight\",\n    \"ground-level framing\"\n  ],\n  \"recommendation\": \"edit_prompt\",\n  \"reasoning\": \"提示词过于模糊，画面与剧本严重不符\"\n}",
+          "roundIndex": 1,
+          "elapsedMs": 0
+        },
+        {
+          "tool": "update_node",
+          "args": {
+            "nodeId": "img_shot3",
+            "updates": {
+              "prompt": "Wide aerial shot from a skyscraper rooftop at night, character standing at the edge overlooking a vast neon city skyline below, deep cyberpunk atmosphere, cinematic framing"
+            }
+          },
+          "success": true,
+          "message": "已更新节点「镜头3 关键帧」的字段: prompt",
+          "roundIndex": 2,
+          "elapsedMs": 0
+        },
+        {
+          "tool": "retry_node",
+          "args": {
+            "nodeId": "img_shot3"
+          },
+          "success": true,
+          "message": "重试节点「镜头3 关键帧」: 图片「镜头3 关键帧」生成完成",
+          "roundIndex": 3,
+          "elapsedMs": 0
+        }
+      ]
+    }
+  ],
+  "pathway": "legacy",
+  "summary": {
+    "total": 8,
+    "passed": 8,
+    "failed": 0,
+    "averageScore": 100,
+    "totalTokens": 2177,
+    "totalElapsedMs": 56
+  }
+}

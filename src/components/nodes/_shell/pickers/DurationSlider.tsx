@@ -60,7 +60,7 @@ export default function DurationSlider({
         value={sliderValue}
         step={1}
         onChange={(e) => handleRaw(Number(e.target.value))}
-        className="w-full h-1 rounded-full appearance-none bg-[hsl(var(--libtv-chip-bg))] cursor-pointer
+        className="nodrag nopan w-full h-1 rounded-full appearance-none bg-[hsl(var(--libtv-chip-bg))] cursor-pointer
                    accent-[hsl(var(--libtv-accent))]
                    [&::-webkit-slider-thumb]:appearance-none
                    [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5

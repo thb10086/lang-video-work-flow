@@ -92,6 +92,11 @@ def validate_params(
             # else: silently drop
             continue
 
+        # null = "未填"：可选字段直接跳过；必填字段在 Pass 2 由 missing_required 报错。
+        # 这避免了前端把空字段以 null 发送时被误判成 invalid_enum / not_a_number。
+        if value is None and not field.get("required"):
+            continue
+
         ftype = str(field.get("type") or "string")
 
         # enum check

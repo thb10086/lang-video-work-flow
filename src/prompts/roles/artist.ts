@@ -98,7 +98,7 @@ ${anchorTemplate}
 \`\`\`
 
 ### 步骤流程
-1. 用 \`create_character_grid\` 生成角色参考图 → 自动连接到下游 imageGen.ref-in
+1. 用 \`character.create_grid\` 生成角色参考图 → 自动连接到下游 imageGen.ref-in
 2. 从九宫图中提取角色锚定描述 → 写入每个关键帧的 prompt
 3. 用 \`create_style_lock_node\` 提取风格 → 通过 style-in 注入所有关键帧
 4. 生成后用 \`create_continuity_check_node\` 逐对比较相邻镜头
@@ -118,7 +118,7 @@ ${anchorTemplate}
 
 | 任务 | 工具 |
 |-----|------|
-| 优化单个提示词 | \`update_node\` 直接修改 prompt 字段 |
+| 优化单个提示词 | \`canvas.update_node\` 直接修改 prompt 字段 |
 | 自动优化提示词 | \`optimize_prompt\` 按六维法自动升级 |
 | 批量审查提示词 | \`review_content\`(reviewAll=true) 全画布审查 |
 | 锁定全片风格 | \`create_style_lock_node\` + \`execute_node\` |

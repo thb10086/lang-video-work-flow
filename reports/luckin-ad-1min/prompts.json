@@ -1,0 +1,97 @@
+{
+  "title": "瑞幸 × 鸿星尔克 联名冰拿铁 60s 产品广告",
+  "scenario": "product_ad",
+  "shotCount": 8,
+  "productOnlyShots": [1, 2],
+  "withCharacterShots": [3, 4, 5, 6, 7, 8],
+  "character": {
+    "name": "Lin Xi",
+    "name_zh": "林溪",
+    "appearance": "25-year-old Chinese woman, shoulder-length straight black hair with subtle inner curl, thin gold-metal round-frame glasses, soft natural makeup, slim build, beige knee-length trench coat over a white cotton tee, washed light-blue straight jeans, white low-top canvas sneakers, small canvas tote bag in matching beige. Calm warm smile, confident posture. Asian commercial advertising aesthetic."
+  },
+  "style": "Cinematic Asian commercial aesthetic, warm afternoon natural light, shallow depth of field, brand-consistent palette (creamy white + Luckin deep blue + Erke red), film-grain feel, 8K commercial photography",
+  "video_camera_motions": [
+    "subtle push-in with gentle focus pull",
+    "slow horizontal pan, eye-level",
+    "gentle dolly forward, shallow depth of field",
+    "locked-off with subtle parallax",
+    "slow zoom-in, smooth handheld feel",
+    "static composition with light atmospheric drift",
+    "slow tracking sideways at eye-level",
+    "locked-off hero shot with subtle parallax"
+  ],
+  "shots": [
+    {
+      "id": 1,
+      "label": "产品 Hero 特写",
+      "aspect_ratio": "1:1",
+      "include_character": false,
+      "image_prompt": "Hero close-up of an iced latte in a tall translucent plastic cup. The cup body has a deep blue Luckin deer-head logo on the left and a small red runner mascot figurine on the right side. A red plastic stir stick shaped like a tiny runner figurine sits in the cream foam top. Soft cream-white foam dome on top of caramel-streaked iced milk. The cup sits on a clean off-white marble countertop, with a small clear glass vase of fresh green leaves on the right and a stack of two minimalist white-cover books on the right side. A folded white-and-red flag-pattern cloth drapes onto the bottom-left corner. Bright soft natural daylight from the upper-left window casts gentle geometric shadows on the wall. Photo-real, ultra-detailed, sharp focus, commercial photography, 8K, no people in frame.",
+      "video_prompt": "Camera: subtle push-in with gentle focus pull, smooth and steady across the full clip. Action: cream foam settles a fraction, soft window-light slowly drifts across the cup surface, faint condensation forms on the plastic. Keep the Luckin deer-head logo, the red runner mascot and the red stirrer perfectly readable and identical throughout. Avoid: warped surface, label distortion, logo flicker, text warping, frame stutter, color shift.",
+      "duration": 8
+    },
+    {
+      "id": 2,
+      "label": "门店吧台特写",
+      "aspect_ratio": "16:9",
+      "include_character": false,
+      "image_prompt": "The same Luckin Erke iced latte cup sits on a warm wooden cafe bar counter, freshly placed. In the soft-blurred background: a Luckin Coffee counter with a faint deer-head logo on a navy-blue tile wall, brass espresso machine partly visible. Warm afternoon natural light streaming in from a side window on the right. The cup is centered with shallow depth of field, the foam fresh and slightly piled. Cinematic, photo-real, no people in frame, 8K commercial photography.",
+      "video_prompt": "Camera: slow horizontal pan to the right, eye-level, smooth steady. Action: subtle steam-free condensation drifts down the cup, a soft warm light shift sweeps across the foam top, background bokeh gently moves. Keep deer-head logo, red runner mascot and stir stick perfectly readable and identical. Avoid: warped surface, label distortion, logo flicker, frame stutter, color shift.",
+      "duration": 8
+    },
+    {
+      "id": 3,
+      "label": "林溪推门进店",
+      "aspect_ratio": "16:9",
+      "include_character": true,
+      "image_prompt": "A 25-year-old Chinese woman named Lin Xi with shoulder-length straight black hair, thin gold-metal round-frame glasses, beige knee-length trench coat, white tee, light-blue jeans, white canvas sneakers and a small beige tote bag, pushes open the glass door of a Luckin Coffee shop from outside. Viewed from inside the shop in a wide cinematic shot. Late afternoon warm sunlight streams in around her silhouette. The Luckin counter and a navy-blue tile wall with a deer-head logo are partially visible inside. Asian commercial aesthetic, photo-real, 8K, shallow depth of field, calm warm tone.",
+      "video_prompt": "Camera: gentle dolly forward with shallow depth of field, smooth steady eye-level motion. Action: Lin Xi pushes the door open and steps forward one calm step, her trench coat billows softly, her hair sways slightly. Late-afternoon light gently shifts across her shoulders. Keep her appearance, glasses, hair style and outfit perfectly consistent. Avoid: face distortion, warped fingers, identity change, frame stutter, color shift.",
+      "duration": 8
+    },
+    {
+      "id": 4,
+      "label": "自助点单",
+      "aspect_ratio": "16:9",
+      "include_character": true,
+      "image_prompt": "The same Lin Xi (25-year-old Chinese woman, shoulder-length straight black hair, thin gold-metal round-frame glasses, beige trench coat, white tee, light-blue jeans, white canvas sneakers) stands at a Luckin self-order kiosk, holding her phone up to scan the QR code. The screen of the kiosk shows a soft blue UI. The exact same Luckin Erke iced latte cup sits on the small counter beside her right hand, with the deer-head logo and red runner mascot fully visible. Mid shot, eye-level, warm interior lighting from above and a side window. Photo-real, 8K, shallow depth of field.",
+      "video_prompt": "Camera: locked-off with subtle parallax, smooth steady motion. Action: Lin Xi lifts her phone toward the screen, her thumb gently taps once, a soft confirmation glow appears on the kiosk. Keep her face, glasses, hair, trench coat and the Luckin cup's deer-head logo + red runner mascot perfectly consistent. Avoid: warped fingers, face distortion, logo flicker, identity change, frame stutter.",
+      "duration": 8
+    },
+    {
+      "id": 5,
+      "label": "窗边轻啜",
+      "aspect_ratio": "16:9",
+      "include_character": true,
+      "image_prompt": "The same Lin Xi sits at a warm wooden window-side table inside the Luckin shop, both hands cradling the same Luckin Erke iced latte. Soft afternoon natural light from the right side window. Tight close-up at eye-level, shallow depth of field. Lin Xi (25-year-old Chinese woman, shoulder-length straight black hair, thin gold-metal round-frame glasses, beige trench coat, white tee) wears a calm warm smile. The deer-head logo and red runner mascot on the cup are clearly visible. Cinematic, photo-real, 8K, calm warm tone.",
+      "video_prompt": "Camera: slow zoom-in, smooth handheld feel. Action: Lin Xi gently brings the cup half an inch closer to her chest, her smile softens, her hair sways one hair-width. Sunlight on the cup surface drifts very slightly. Keep her face, glasses, hair and the Luckin cup's deer-head logo + red runner mascot perfectly consistent. Avoid: face distortion, warped fingers, identity change, logo flicker, frame stutter.",
+      "duration": 8
+    },
+    {
+      "id": 6,
+      "label": "啜饮回味",
+      "aspect_ratio": "16:9",
+      "include_character": true,
+      "image_prompt": "Tight close-up of the same Lin Xi taking a slow sip from the same Luckin Erke iced latte through the red runner-shaped stir stick. Her eyes are gently closed in enjoyment, faint upturn at the corners of her mouth, faint blush. Soft warm afternoon light from the side window. Background is the blurred warm wooden window-side area of the Luckin shop. Lin Xi: 25-year-old Chinese woman, shoulder-length straight black hair, thin gold-metal round-frame glasses, beige trench coat. Photo-real, 8K, shallow depth of field, cinematic.",
+      "video_prompt": "Camera: static composition with light atmospheric drift, locked-off eye-level. Action: Lin Xi tilts her head very slightly, her lips gently close around the red runner stir stick, a small swallow ripples in her throat, then a soft smile. Keep her face, glasses, hair and the Luckin cup's deer-head logo + red runner stick perfectly consistent. Avoid: face distortion, identity change, warped fingers, logo flicker, frame stutter.",
+      "duration": 8
+    },
+    {
+      "id": 7,
+      "label": "街头举杯",
+      "aspect_ratio": "16:9",
+      "include_character": true,
+      "image_prompt": "The same Lin Xi stands on a calm sunset street just outside the Luckin shop, half-body framing from a slight low angle, holding the same Luckin Erke iced latte up toward the camera with her right hand. Side-back rim light from the warm orange sunset, soft golden hour. Background: softly blurred urban street with warm sunset cityscape, gentle bokeh of distant tail-lights. Lin Xi (25-year-old Chinese woman, shoulder-length straight black hair, thin gold-metal round-frame glasses, beige trench coat, white tee, light-blue jeans). The deer-head logo and red runner mascot on the cup are clearly readable. Photo-real, 8K, cinematic.",
+      "video_prompt": "Camera: slow tracking sideways at eye-level, smooth steady. Action: Lin Xi gently raises the cup a touch higher toward the camera, golden-hour rim light glides across her hair and the cup's curve, her trench coat hem sways one hair-width. Keep her face, glasses, hair, outfit and the Luckin cup's deer-head logo + red runner mascot perfectly consistent. Avoid: face distortion, identity change, warped fingers, logo flicker, frame stutter, color shift.",
+      "duration": 8
+    },
+    {
+      "id": 8,
+      "label": "Logo 收尾",
+      "aspect_ratio": "16:9",
+      "include_character": false,
+      "image_prompt": "Final brand end-card. The exact same Luckin Erke iced latte cup sits centered on a clean cream-white surface against a soft off-white wall, golden hour light from the upper-left. To the right of the cup, the Luckin deer-head logo in deep blue and the Erke red runner mascot stand side by side in a clean composition with generous negative space at the bottom for a tagline. Photo-real, ultra-detailed, sharp focus, no people in frame, 8K commercial photography.",
+      "video_prompt": "Camera: locked-off hero shot with subtle parallax, smooth steady. Action: a soft warm light sweep glides gently across the cup, the foam top settles one hair-width, the deer-head logo and red runner mascot gleam softly. Keep the cup, both logos and the red runner mascot perfectly readable and identical. Avoid: warped surface, label distortion, logo flicker, text warping, frame stutter, color shift.",
+      "duration": 8
+    }
+  ]
+}

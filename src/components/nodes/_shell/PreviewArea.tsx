@@ -46,23 +46,37 @@ export default function PreviewArea({
   cornerOverlay,
   className = '',
 }: PreviewAreaProps) {
-  const hasContent = !loading && !!children
-
+  const hasChildren = !!children
+  // 关键：loading 时如果 children 存在（如首帧图、角色图），仍渲染 children 并叠加
+  // 半透明蒙层 + 大转圈，让用户清楚知道"正在用这张图生成"。
+  // 旧实现把 children 隐藏只显示一个小圆点 → 用户体验被掏空，是已知 UX bug。
   return (
     <div
-      className={`libtv-preview w-full ${className}`}
+      className={`libtv-preview w-full nowheel nopan ${className}`}
       style={{ aspectRatio: aspect }}
     >
-      {hasContent ? (
-        children
+      {hasChildren ? (
+        <>
+          {children}
+          {loading && (
+            <div className="absolute inset-0 z-[5] bg-black/45 backdrop-blur-[1px] flex items-center justify-center pointer-events-none">
+              <div className="flex flex-col items-center gap-1.5">
+                <div className="w-9 h-9 rounded-full border-2 border-white/30 border-t-white/90 animate-spin" />
+                <div className="text-[10px] text-white/85 font-mono tracking-wide">生成中…</div>
+              </div>
+            </div>
+          )}
+        </>
       ) : loading ? (
-        <div className="w-full h-full flex items-center justify-center">
-          <div className="w-10 h-10 rounded-full bg-[hsl(var(--libtv-muted)/0.15)] animate-pulse" />
+        /* No children — show a clean skeleton in the center */
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-10 h-10 rounded-full border-2 border-[hsl(var(--libtv-muted)/0.2)] border-t-[hsl(var(--libtv-accent))] animate-spin" />
+            <div className="text-[10px] text-[hsl(var(--libtv-muted))] font-mono">生成中…</div>
+          </div>
         </div>
       ) : (
-        /* Empty guided state — LibTV signature "尝试：XXX" hint.
-           Uses flex centering WITHIN the preview box so the content never
-           overflows; we shrink gracefully on narrow aspect ratios. */
+        /* Empty guided state — LibTV signature "尝试：XXX" hint. */
         <div className="absolute inset-0 flex items-center justify-center p-3">
           <div className="flex flex-col items-center gap-2 max-w-full">
             {PlaceholderIcon && (

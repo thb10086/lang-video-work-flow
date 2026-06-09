@@ -104,7 +104,7 @@ const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(function Pro
   }
 
   return (
-    <div className="flex flex-col gap-1 w-full">
+    <div className="flex flex-col gap-1 w-full nodrag nowheel nopan">
       {!hideChips && chips.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {chips.map((chip, idx) => {

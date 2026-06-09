@@ -2,7 +2,7 @@ from app.models.base import Base
 from app.models.project import Project
 from app.models.workflow import Workflow
 from app.models.template import Template
-from app.models.agent import AgentSession, AgentMessage, AgentMemory
+from app.models.agent import AgentSession, AgentMessage, AgentEvent, AgentMemory
 from app.models.asset import Asset
 from app.models.task import TaskQueue
 from app.models.character import CharacterAppearance
@@ -18,6 +18,7 @@ __all__ = [
     "Template",
     "AgentSession",
     "AgentMessage",
+    "AgentEvent",
     "AgentMemory",
     "Asset",
     "TaskQueue",

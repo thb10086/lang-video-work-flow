@@ -1,0 +1,627 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - button "节点面板 (Ctrl+B)" [ref=e6] [cursor=pointer]:
+        - img [ref=e7]
+      - generic [ref=e10]: P
+      - heading "Prism AI" [level=1] [ref=e11]
+      - generic [ref=e12]: v0.4
+    - generic [ref=e13]:
+      - button "模板" [ref=e14] [cursor=pointer]:
+        - img [ref=e15]
+        - text: 模板
+      - button "素材" [ref=e19] [cursor=pointer]:
+        - img [ref=e20]
+        - text: 素材
+      - button "导入" [ref=e22] [cursor=pointer]:
+        - img [ref=e23]
+        - text: 导入
+      - button "导出" [ref=e26] [cursor=pointer]:
+        - img [ref=e27]
+        - text: 导出
+      - button "运行" [ref=e31] [cursor=pointer]:
+        - img [ref=e32]
+        - text: 运行
+      - button "Agent (Ctrl+J)" [ref=e35] [cursor=pointer]:
+        - img [ref=e36]
+      - button "设置" [ref=e38] [cursor=pointer]:
+        - img [ref=e39]
+      - button "全屏 (Ctrl+Shift+F)" [ref=e42] [cursor=pointer]:
+        - img [ref=e43]
+  - generic [ref=e51]:
+    - generic [ref=e52]:
+      - generic [ref=e53]:
+        - button "点阵" [ref=e54] [cursor=pointer]:
+          - img [ref=e55]
+        - button "线格" [ref=e57] [cursor=pointer]:
+          - img [ref=e58]
+        - button "十字" [ref=e60] [cursor=pointer]:
+          - img [ref=e61]
+        - button "无" [ref=e64] [cursor=pointer]:
+          - img [ref=e65]
+      - generic [ref=e68]:
+        - generic [ref=e69]: 间距
+        - button "10" [ref=e70] [cursor=pointer]
+        - button "15" [ref=e71] [cursor=pointer]
+        - button "20" [ref=e72] [cursor=pointer]
+        - button "25" [ref=e73] [cursor=pointer]
+        - button "30" [ref=e74] [cursor=pointer]
+      - button "吸附开启" [ref=e75] [cursor=pointer]:
+        - img [ref=e76]
+      - generic [ref=e79]:
+        - button "缩小" [ref=e80] [cursor=pointer]:
+          - img [ref=e81]
+        - button "适应视图" [ref=e82] [cursor=pointer]:
+          - img [ref=e83]
+        - button "放大" [ref=e88] [cursor=pointer]:
+          - img [ref=e89]
+      - generic [ref=e90]:
+        - button "浅色主题" [ref=e91] [cursor=pointer]:
+          - img [ref=e92]
+        - button "深色主题" [ref=e98] [cursor=pointer]:
+          - img [ref=e99]
+        - button "跟随系统" [ref=e101] [cursor=pointer]:
+          - img [ref=e102]
+    - application [ref=e104]:
+      - generic [ref=e106]:
+        - generic:
+          - generic:
+            - img:
+              - group "Edge from 1778738374247-zxkirx4pz to 1778738374247-st8hb46y7" [ref=e123] [cursor=pointer]
+            - img:
+              - group "Edge from 1778738374247-fv7661vz2 to 1778738374247-zxkirx4pz" [ref=e126] [cursor=pointer]
+            - img:
+              - group "Edge from 1778738374247-6i6k38j5w to 1778738374247-p3u22mu8a" [ref=e129] [cursor=pointer]
+            - img:
+              - group "Edge from 1778738374247-fv7661vz2 to 1778738374247-6i6k38j5w" [ref=e132] [cursor=pointer]
+            - img:
+              - group "Edge from 1778738374247-mqwnagy6l to 1778738374247-c2ai3512g" [ref=e135] [cursor=pointer]
+            - img:
+              - group "Edge from 1778738374247-fv7661vz2 to 1778738374247-mqwnagy6l" [ref=e138] [cursor=pointer]
+            - img:
+              - group "Edge from 1778738374247-st8hb46y7 to 1778738374247-fr0qrz2mz" [ref=e141] [cursor=pointer]
+            - img:
+              - group "Edge from 1778738374247-p3u22mu8a to 1778738374247-fr0qrz2mz" [ref=e144] [cursor=pointer]
+            - img:
+              - group "Edge from 1778738374247-c2ai3512g to 1778738374247-fr0qrz2mz" [ref=e147] [cursor=pointer]
+          - generic:
+            - group [ref=e150]:
+              - generic [ref=e151]:
+                - generic [ref=e152]:
+                  - img [ref=e154]
+                  - generic [ref=e160]: 品牌风格
+                  - img [ref=e163]
+                - generic [ref=e166]:
+                  - button "Connect upstream node" [ref=e167] [cursor=pointer]:
+                    - img [ref=e168]
+                  - button "Connect downstream node" [ref=e169] [cursor=pointer]:
+                    - img [ref=e170]
+                  - generic [ref=e174]:
+                    - generic [ref=e177]:
+                      - img [ref=e179]
+                      - generic [ref=e185]:
+                        - generic [ref=e186]: 尝试：
+                        - button "上传参考图" [ref=e187] [cursor=pointer]:
+                          - img [ref=e188]
+                          - generic [ref=e191]: 上传参考图
+                    - textbox "描述期望的风格：赛博朋克 / 暖色调 / 胶片质感 / 柔焦..." [ref=e192]: commercial-grade, Luckin blue/white palette, premium glossy aesthetic
+                    - generic [ref=e193]:
+                      - button "上传参考图" [ref=e195] [cursor=pointer]:
+                        - img [ref=e196]
+                        - generic [ref=e199]: 上传参考图
+                      - button "Submit" [ref=e201] [cursor=pointer]:
+                        - img [ref=e202]
+                    - generic [ref=e204]:
+                      - generic [ref=e205]:
+                        - img [ref=e206]
+                        - generic [ref=e209]: 已锁定风格
+                      - paragraph [ref=e210]: commercial-grade, Luckin blue/white palette, premium glossy aesthetic
+            - group [ref=e211]:
+              - generic [ref=e212]:
+                - generic [ref=e213]:
+                  - img [ref=e215]
+                  - generic [ref=e219]: 产品展示
+                - generic [ref=e220]:
+                  - button "Connect upstream node" [ref=e221] [cursor=pointer]:
+                    - img [ref=e222]
+                  - button "Connect downstream node" [ref=e223] [cursor=pointer]:
+                    - img [ref=e224]
+                  - generic [ref=e229]:
+                    - generic [ref=e232]:
+                      - img [ref=e234]
+                      - generic [ref=e238]:
+                        - generic [ref=e239]: 尝试：
+                        - button "图生图" [ref=e240] [cursor=pointer]:
+                          - img [ref=e241]
+                          - generic [ref=e244]: 图生图
+                        - button "图片高清" [ref=e245] [cursor=pointer]:
+                          - img [ref=e246]
+                          - generic [ref=e248]: 图片高清
+                    - generic [ref=e249]:
+                      - generic [ref=e251]:
+                        - button "文生图" [ref=e252] [cursor=pointer]
+                        - button "图生图" [ref=e253] [cursor=pointer]
+                        - button "图片高清" [ref=e254] [cursor=pointer]
+                        - button "图片参考" [ref=e255] [cursor=pointer]
+                        - button "风格" [ref=e256] [cursor=pointer]
+                      - generic [ref=e257]:
+                        - button "风格" [ref=e259] [cursor=pointer]:
+                          - img [ref=e260]
+                          - generic [ref=e266]: 风格
+                        - button "摄像机" [ref=e268] [cursor=pointer]:
+                          - img [ref=e269]
+                          - generic [ref=e275]: 摄像机
+                        - button "景别" [ref=e277] [cursor=pointer]:
+                          - img [ref=e278]
+                          - generic [ref=e283]: 景别
+                        - button "角色库" [ref=e285] [cursor=pointer]:
+                          - img [ref=e286]
+                          - generic [ref=e290]: 角色库
+                          - img [ref=e291]
+                        - button "上传参考图" [ref=e293] [cursor=pointer]:
+                          - img [ref=e294]
+                          - generic [ref=e297]: 上传参考图
+                      - textbox "描述你想要生成的画面内容，@引用素材" [ref=e300]: Shot 1 — phone screen tapping Luckin app order
+                    - generic [ref=e301]:
+                      - generic [ref=e302]:
+                        - button "GPT Image 2" [ref=e304] [cursor=pointer]:
+                          - img [ref=e305]
+                          - generic "GPT Image 2" [ref=e307]
+                          - img [ref=e308]
+                        - button "1024X1024" [ref=e311] [cursor=pointer]:
+                          - generic [ref=e313]: 1024X1024
+                          - img [ref=e314]
+                      - button "Submit" [ref=e317] [cursor=pointer]:
+                        - img [ref=e318]
+            - group [ref=e320]:
+              - generic [ref=e321]:
+                - generic [ref=e322]:
+                  - img [ref=e324]
+                  - generic [ref=e326]: 产品展示 12s
+                - generic [ref=e327]:
+                  - button "Connect upstream node" [ref=e328] [cursor=pointer]:
+                    - img [ref=e329]
+                  - button "Connect downstream node" [ref=e330] [cursor=pointer]:
+                    - img [ref=e331]
+                  - generic [ref=e337]:
+                    - generic [ref=e340]:
+                      - img [ref=e342]
+                      - generic [ref=e344]:
+                        - generic [ref=e345]: 尝试：
+                        - button "首尾帧生成视频" [ref=e346] [cursor=pointer]:
+                          - img [ref=e347]
+                          - generic [ref=e351]: 首尾帧生成视频
+                        - button "首帧生成视频" [ref=e352] [cursor=pointer]:
+                          - img [ref=e353]
+                          - generic [ref=e355]: 首帧生成视频
+                    - generic [ref=e356]:
+                      - generic [ref=e358]:
+                        - button "文生视频" [ref=e359] [cursor=pointer]
+                        - button "全能参考" [ref=e360] [cursor=pointer]
+                        - button "图生视频" [ref=e361] [cursor=pointer]
+                        - button "首尾帧" [ref=e362] [cursor=pointer]
+                        - button "图片参考" [ref=e363] [cursor=pointer]
+                      - generic [ref=e364]:
+                        - button "风格" [ref=e366] [cursor=pointer]:
+                          - img [ref=e367]
+                          - generic [ref=e373]: 风格
+                        - button "运镜" [ref=e375] [cursor=pointer]:
+                          - img [ref=e376]
+                          - generic [ref=e382]: 运镜
+                        - button "景别" [ref=e384] [cursor=pointer]:
+                          - img [ref=e385]
+                          - generic [ref=e390]: 景别
+                        - button "角色库" [ref=e392] [cursor=pointer]:
+                          - img [ref=e393]
+                          - generic [ref=e397]: 角色库
+                          - img [ref=e398]
+                      - textbox "描述你想要生成的画面内容，@引用素材" [ref=e402]: "Camera: subtle push-in with gentle focus pull, smooth and steady motion across the full clip. Action: Shot 1 — phone screen tapping Luckin app order. Keep product label, logo and packaging perfectly readable and consistent throughout. Soft ambient motion (steam, hair sway, light drift) is welcome; large object displacement is not. Avoid: warped fingers, extra hands, face distortion, identity change, logo flicker, text warping, frame stutter, color shift."
+                    - generic [ref=e403]:
+                      - generic [ref=e404]:
+                        - button "Sora 2 VVIP (默认)" [ref=e406] [cursor=pointer]:
+                          - img [ref=e407]
+                          - generic "Sora 2 VVIP (默认)" [ref=e410]
+                          - img [ref=e411]
+                        - button "12 · 720P · 12s" [ref=e414] [cursor=pointer]:
+                          - generic [ref=e416]: 12 · 720P · 12s
+                          - img [ref=e417]
+                      - button "Submit" [ref=e420] [cursor=pointer]:
+                        - img [ref=e421]
+            - group [ref=e423]:
+              - generic [ref=e424]:
+                - generic [ref=e425]:
+                  - img [ref=e427]
+                  - generic [ref=e431]: 使用场景
+                - generic [ref=e432]:
+                  - button "Connect upstream node" [ref=e433] [cursor=pointer]:
+                    - img [ref=e434]
+                  - button "Connect downstream node" [ref=e435] [cursor=pointer]:
+                    - img [ref=e436]
+                  - generic [ref=e441]:
+                    - generic [ref=e444]:
+                      - img [ref=e446]
+                      - generic [ref=e450]:
+                        - generic [ref=e451]: 尝试：
+                        - button "图生图" [ref=e452] [cursor=pointer]:
+                          - img [ref=e453]
+                          - generic [ref=e456]: 图生图
+                        - button "图片高清" [ref=e457] [cursor=pointer]:
+                          - img [ref=e458]
+                          - generic [ref=e460]: 图片高清
+                    - generic [ref=e461]:
+                      - generic [ref=e463]:
+                        - button "文生图" [ref=e464] [cursor=pointer]
+                        - button "图生图" [ref=e465] [cursor=pointer]
+                        - button "图片高清" [ref=e466] [cursor=pointer]
+                        - button "图片参考" [ref=e467] [cursor=pointer]
+                        - button "风格" [ref=e468] [cursor=pointer]
+                      - generic [ref=e469]:
+                        - button "风格" [ref=e471] [cursor=pointer]:
+                          - img [ref=e472]
+                          - generic [ref=e478]: 风格
+                        - button "摄像机" [ref=e480] [cursor=pointer]:
+                          - img [ref=e481]
+                          - generic [ref=e487]: 摄像机
+                        - button "景别" [ref=e489] [cursor=pointer]:
+                          - img [ref=e490]
+                          - generic [ref=e495]: 景别
+                        - button "角色库" [ref=e497] [cursor=pointer]:
+                          - img [ref=e498]
+                          - generic [ref=e502]: 角色库
+                          - img [ref=e503]
+                        - button "上传参考图" [ref=e505] [cursor=pointer]:
+                          - img [ref=e506]
+                          - generic [ref=e509]: 上传参考图
+                      - textbox "描述你想要生成的画面内容，@引用素材" [ref=e512]: Shot 2 — espresso pulling from machine into glass
+                    - generic [ref=e513]:
+                      - generic [ref=e514]:
+                        - button "GPT Image 2" [ref=e516] [cursor=pointer]:
+                          - img [ref=e517]
+                          - generic "GPT Image 2" [ref=e519]
+                          - img [ref=e520]
+                        - button "1024X1024" [ref=e523] [cursor=pointer]:
+                          - generic [ref=e525]: 1024X1024
+                          - img [ref=e526]
+                      - button "Submit" [ref=e529] [cursor=pointer]:
+                        - img [ref=e530]
+            - group [ref=e532]:
+              - generic [ref=e533]:
+                - generic [ref=e534]:
+                  - img [ref=e536]
+                  - generic [ref=e538]: 使用场景 12s
+                - generic [ref=e539]:
+                  - button "Connect upstream node" [ref=e540] [cursor=pointer]:
+                    - img [ref=e541]
+                  - button "Connect downstream node" [ref=e542] [cursor=pointer]:
+                    - img [ref=e543]
+                  - generic [ref=e549]:
+                    - generic [ref=e552]:
+                      - img [ref=e554]
+                      - generic [ref=e556]:
+                        - generic [ref=e557]: 尝试：
+                        - button "首尾帧生成视频" [ref=e558] [cursor=pointer]:
+                          - img [ref=e559]
+                          - generic [ref=e563]: 首尾帧生成视频
+                        - button "首帧生成视频" [ref=e564] [cursor=pointer]:
+                          - img [ref=e565]
+                          - generic [ref=e567]: 首帧生成视频
+                    - generic [ref=e568]:
+                      - generic [ref=e570]:
+                        - button "文生视频" [ref=e571] [cursor=pointer]
+                        - button "全能参考" [ref=e572] [cursor=pointer]
+                        - button "图生视频" [ref=e573] [cursor=pointer]
+                        - button "首尾帧" [ref=e574] [cursor=pointer]
+                        - button "图片参考" [ref=e575] [cursor=pointer]
+                      - generic [ref=e576]:
+                        - button "风格" [ref=e578] [cursor=pointer]:
+                          - img [ref=e579]
+                          - generic [ref=e585]: 风格
+                        - button "运镜" [ref=e587] [cursor=pointer]:
+                          - img [ref=e588]
+                          - generic [ref=e594]: 运镜
+                        - button "景别" [ref=e596] [cursor=pointer]:
+                          - img [ref=e597]
+                          - generic [ref=e602]: 景别
+                        - button "角色库" [ref=e604] [cursor=pointer]:
+                          - img [ref=e605]
+                          - generic [ref=e609]: 角色库
+                          - img [ref=e610]
+                      - textbox "描述你想要生成的画面内容，@引用素材" [ref=e614]: "Camera: slow horizontal pan, eye-level, smooth and steady motion across the full clip. Action: Shot 2 — espresso pulling from machine into glass. Keep product label, logo and packaging perfectly readable and consistent throughout. Soft ambient motion (steam, hair sway, light drift) is welcome; large object displacement is not. Avoid: warped fingers, extra hands, face distortion, identity change, logo flicker, text warping, frame stutter, color shift."
+                    - generic [ref=e615]:
+                      - generic [ref=e616]:
+                        - button "Sora 2 VVIP (默认)" [ref=e618] [cursor=pointer]:
+                          - img [ref=e619]
+                          - generic "Sora 2 VVIP (默认)" [ref=e622]
+                          - img [ref=e623]
+                        - button "12 · 720P · 12s" [ref=e626] [cursor=pointer]:
+                          - generic [ref=e628]: 12 · 720P · 12s
+                          - img [ref=e629]
+                      - button "Submit" [ref=e632] [cursor=pointer]:
+                        - img [ref=e633]
+            - group [ref=e635]:
+              - generic [ref=e636]:
+                - generic [ref=e637]:
+                  - img [ref=e639]
+                  - generic [ref=e643]: Logo 结尾
+                - generic [ref=e644]:
+                  - button "Connect upstream node" [ref=e645] [cursor=pointer]:
+                    - img [ref=e646]
+                  - button "Connect downstream node" [ref=e647] [cursor=pointer]:
+                    - img [ref=e648]
+                  - generic [ref=e653]:
+                    - generic [ref=e656]:
+                      - img [ref=e658]
+                      - generic [ref=e662]:
+                        - generic [ref=e663]: 尝试：
+                        - button "图生图" [ref=e664] [cursor=pointer]:
+                          - img [ref=e665]
+                          - generic [ref=e668]: 图生图
+                        - button "图片高清" [ref=e669] [cursor=pointer]:
+                          - img [ref=e670]
+                          - generic [ref=e672]: 图片高清
+                    - generic [ref=e673]:
+                      - generic [ref=e675]:
+                        - button "文生图" [ref=e676] [cursor=pointer]
+                        - button "图生图" [ref=e677] [cursor=pointer]
+                        - button "图片高清" [ref=e678] [cursor=pointer]
+                        - button "图片参考" [ref=e679] [cursor=pointer]
+                        - button "风格" [ref=e680] [cursor=pointer]
+                      - generic [ref=e681]:
+                        - button "风格" [ref=e683] [cursor=pointer]:
+                          - img [ref=e684]
+                          - generic [ref=e690]: 风格
+                        - button "摄像机" [ref=e692] [cursor=pointer]:
+                          - img [ref=e693]
+                          - generic [ref=e699]: 摄像机
+                        - button "景别" [ref=e701] [cursor=pointer]:
+                          - img [ref=e702]
+                          - generic [ref=e707]: 景别
+                        - button "角色库" [ref=e709] [cursor=pointer]:
+                          - img [ref=e710]
+                          - generic [ref=e714]: 角色库
+                          - img [ref=e715]
+                        - button "上传参考图" [ref=e717] [cursor=pointer]:
+                          - img [ref=e718]
+                          - generic [ref=e721]: 上传参考图
+                      - textbox "描述你想要生成的画面内容，@引用素材" [ref=e724]: Shot 3 — Luckin Iced Americano hero shot, condensation glistening
+                    - generic [ref=e725]:
+                      - generic [ref=e726]:
+                        - button "GPT Image 2" [ref=e728] [cursor=pointer]:
+                          - img [ref=e729]
+                          - generic "GPT Image 2" [ref=e731]
+                          - img [ref=e732]
+                        - button "1024X1024" [ref=e735] [cursor=pointer]:
+                          - generic [ref=e737]: 1024X1024
+                          - img [ref=e738]
+                      - button "Submit" [ref=e741] [cursor=pointer]:
+                        - img [ref=e742]
+            - group [ref=e744]:
+              - generic [ref=e745]:
+                - generic [ref=e746]:
+                  - img [ref=e748]
+                  - generic [ref=e750]: Logo 结尾 12s
+                - generic [ref=e751]:
+                  - button "Connect upstream node" [ref=e752] [cursor=pointer]:
+                    - img [ref=e753]
+                  - button "Connect downstream node" [ref=e754] [cursor=pointer]:
+                    - img [ref=e755]
+                  - generic [ref=e761]:
+                    - generic [ref=e764]:
+                      - img [ref=e766]
+                      - generic [ref=e768]:
+                        - generic [ref=e769]: 尝试：
+                        - button "首尾帧生成视频" [ref=e770] [cursor=pointer]:
+                          - img [ref=e771]
+                          - generic [ref=e775]: 首尾帧生成视频
+                        - button "首帧生成视频" [ref=e776] [cursor=pointer]:
+                          - img [ref=e777]
+                          - generic [ref=e779]: 首帧生成视频
+                    - generic [ref=e780]:
+                      - generic [ref=e782]:
+                        - button "文生视频" [ref=e783] [cursor=pointer]
+                        - button "全能参考" [ref=e784] [cursor=pointer]
+                        - button "图生视频" [ref=e785] [cursor=pointer]
+                        - button "首尾帧" [ref=e786] [cursor=pointer]
+                        - button "图片参考" [ref=e787] [cursor=pointer]
+                      - generic [ref=e788]:
+                        - button "风格" [ref=e790] [cursor=pointer]:
+                          - img [ref=e791]
+                          - generic [ref=e797]: 风格
+                        - button "运镜" [ref=e799] [cursor=pointer]:
+                          - img [ref=e800]
+                          - generic [ref=e806]: 运镜
+                        - button "景别" [ref=e808] [cursor=pointer]:
+                          - img [ref=e809]
+                          - generic [ref=e814]: 景别
+                        - button "角色库" [ref=e816] [cursor=pointer]:
+                          - img [ref=e817]
+                          - generic [ref=e821]: 角色库
+                          - img [ref=e822]
+                      - textbox "描述你想要生成的画面内容，@引用素材" [ref=e826]: "Camera: gentle dolly forward, shallow depth of field, smooth and steady motion across the full clip. Action: Shot 3 — Luckin Iced Americano hero shot, condensation glistening. Keep product label, logo and packaging perfectly readable and consistent throughout. Soft ambient motion (steam, hair sway, light drift) is welcome; large object displacement is not. Avoid: warped fingers, extra hands, face distortion, identity change, logo flicker, text warping, frame stutter, color shift."
+                    - generic [ref=e827]:
+                      - generic [ref=e828]:
+                        - button "Sora 2 VVIP (默认)" [ref=e830] [cursor=pointer]:
+                          - img [ref=e831]
+                          - generic "Sora 2 VVIP (默认)" [ref=e834]
+                          - img [ref=e835]
+                        - button "12 · 720P · 12s" [ref=e838] [cursor=pointer]:
+                          - generic [ref=e840]: 12 · 720P · 12s
+                          - img [ref=e841]
+                      - button "Submit" [ref=e844] [cursor=pointer]:
+                        - img [ref=e845]
+            - group [ref=e847]:
+              - generic [ref=e848]:
+                - generic [ref=e849]:
+                  - img [ref=e851]
+                  - generic [ref=e856]: 最终合成
+                  - generic [ref=e858]: 0 段视频
+                - generic [ref=e859]:
+                  - button "Connect upstream node" [ref=e860] [cursor=pointer]:
+                    - img [ref=e861]
+                  - button "Connect downstream node" [ref=e862] [cursor=pointer]:
+                    - img [ref=e863]
+                  - generic [ref=e867]:
+                    - generic [ref=e870]:
+                      - img [ref=e872]
+                      - generic [ref=e877]:
+                        - generic [ref=e878]: 尝试：
+                        - button "连接上游视频节点后点击收集" [ref=e879] [cursor=pointer]:
+                          - img [ref=e880]
+                          - generic [ref=e882]: 连接上游视频节点后点击收集
+                    - button "Submit" [ref=e885] [cursor=pointer]:
+                      - img [ref=e886]
+            - group [ref=e896]:
+              - generic [ref=e897]:
+                - generic [ref=e898]:
+                  - img [ref=e900]
+                  - generic [ref=e905]: "分镜: 点单流程"
+                  - generic [ref=e908]: 6格
+                - generic [ref=e909]:
+                  - button "Connect upstream node" [ref=e910] [cursor=pointer]:
+                    - img [ref=e911]
+                  - button "Connect downstream node" [ref=e912] [cursor=pointer]:
+                    - img [ref=e913]
+                  - generic [ref=e916]:
+                    - img [ref=e921]
+                    - generic [ref=e926]:
+                      - textbox "镜头名（例：shot-3-revenge）" [ref=e927]: 点单流程
+                      - textbox "镜头描述：动作 / 环境 / 角色 / 镜头运动..." [ref=e928]: Customer hand tapping Luckin app, browsing menu, selecting Iced Americano, confirming order, then phone showing order confirmation. Customer in white shirt, modern Luckin shop interior.
+                    - generic [ref=e929]:
+                      - generic [ref=e930]:
+                        - button "剧情推演" [ref=e932] [cursor=pointer]:
+                          - img [ref=e933]
+                          - generic [ref=e936]: 剧情推演
+                          - img [ref=e937]
+                        - button "六宫格" [ref=e940] [cursor=pointer]:
+                          - img [ref=e941]
+                          - generic [ref=e943]: 六宫格
+                          - img [ref=e944]
+                        - button "电影" [ref=e947] [cursor=pointer]:
+                          - img [ref=e948]
+                          - generic [ref=e954]: 电影
+                          - img [ref=e955]
+                        - button "宁静" [ref=e958] [cursor=pointer]:
+                          - img [ref=e959]
+                          - generic [ref=e961]: 宁静
+                          - img [ref=e962]
+                      - button "Submit" [ref=e965] [cursor=pointer]:
+                        - img [ref=e966]
+            - group [ref=e968]:
+              - generic [ref=e969]:
+                - generic [ref=e970]:
+                  - img [ref=e972]
+                  - generic [ref=e977]: "分镜: 咖啡萃取"
+                  - generic [ref=e980]: 6格
+                - generic [ref=e981]:
+                  - button "Connect upstream node" [ref=e982] [cursor=pointer]:
+                    - img [ref=e983]
+                  - button "Connect downstream node" [ref=e984] [cursor=pointer]:
+                    - img [ref=e985]
+                  - generic [ref=e988]:
+                    - img [ref=e993]
+                    - generic [ref=e998]:
+                      - textbox "镜头名（例：shot-3-revenge）" [ref=e999]: 咖啡萃取
+                      - textbox "镜头描述：动作 / 环境 / 角色 / 镜头运动..." [ref=e1000]: Espresso machine extracting fresh shot into glass — from empty glass, to first golden drops, dark espresso filling halfway, crema forming on top, glass nearly full, condensation on glass surface. Brass-fitted machine, warm cinematic backlight.
+                    - generic [ref=e1001]:
+                      - generic [ref=e1002]:
+                        - button "画面演进" [ref=e1004] [cursor=pointer]:
+                          - img [ref=e1005]
+                          - generic [ref=e1008]: 画面演进
+                          - img [ref=e1009]
+                        - button "六宫格" [ref=e1012] [cursor=pointer]:
+                          - img [ref=e1013]
+                          - generic [ref=e1015]: 六宫格
+                          - img [ref=e1016]
+                        - button "电影" [ref=e1019] [cursor=pointer]:
+                          - img [ref=e1020]
+                          - generic [ref=e1026]: 电影
+                          - img [ref=e1027]
+                        - button "戏剧" [ref=e1030] [cursor=pointer]:
+                          - img [ref=e1031]
+                          - generic [ref=e1033]: 戏剧
+                          - img [ref=e1034]
+                      - button "Submit" [ref=e1037] [cursor=pointer]:
+                        - img [ref=e1038]
+            - group [ref=e1040]:
+              - generic [ref=e1041]:
+                - generic [ref=e1042]:
+                  - img [ref=e1044]
+                  - generic [ref=e1049]: "分镜: 拉花动作"
+                  - generic [ref=e1052]: 6格
+                - generic [ref=e1053]:
+                  - button "Connect upstream node" [ref=e1054] [cursor=pointer]:
+                    - img [ref=e1055]
+                  - button "Connect downstream node" [ref=e1056] [cursor=pointer]:
+                    - img [ref=e1057]
+                  - generic [ref=e1060]:
+                    - img [ref=e1065]
+                    - generic [ref=e1070]:
+                      - textbox "镜头名（例：shot-3-revenge）" [ref=e1071]: 拉花动作
+                      - textbox "镜头描述：动作 / 环境 / 角色 / 镜头运动..." [ref=e1072]: Barista performing latte art on iced americano milk top — pouring stream descending, milk hitting surface, swirling pattern emerging, leaf shape forming, finishing flick, completed art. Hands and pitcher visible, natural light.
+                    - generic [ref=e1073]:
+                      - generic [ref=e1074]:
+                        - button "动作分解" [ref=e1076] [cursor=pointer]:
+                          - img [ref=e1077]
+                          - generic [ref=e1080]: 动作分解
+                          - img [ref=e1081]
+                        - button "六宫格" [ref=e1084] [cursor=pointer]:
+                          - img [ref=e1085]
+                          - generic [ref=e1087]: 六宫格
+                          - img [ref=e1088]
+                        - button "写实" [ref=e1091] [cursor=pointer]:
+                          - img [ref=e1092]
+                          - generic [ref=e1098]: 写实
+                          - img [ref=e1099]
+                        - button "宁静" [ref=e1102] [cursor=pointer]:
+                          - img [ref=e1103]
+                          - generic [ref=e1105]: 宁静
+                          - img [ref=e1106]
+                      - button "Submit" [ref=e1109] [cursor=pointer]:
+                        - img [ref=e1110]
+            - group [ref=e1112]:
+              - generic [ref=e1113]:
+                - generic [ref=e1114]:
+                  - img [ref=e1116]
+                  - generic [ref=e1121]: "分镜: 成品展示"
+                  - generic [ref=e1124]: 4格
+                - generic [ref=e1125]:
+                  - button "Connect upstream node" [ref=e1126] [cursor=pointer]:
+                    - img [ref=e1127]
+                  - button "Connect downstream node" [ref=e1128] [cursor=pointer]:
+                    - img [ref=e1129]
+                  - generic [ref=e1132]:
+                    - img [ref=e1137]
+                    - generic [ref=e1142]:
+                      - textbox "镜头名（例：shot-3-revenge）" [ref=e1143]: 成品展示
+                      - textbox "镜头描述：动作 / 环境 / 角色 / 镜头运动..." [ref=e1144]: "Luckin Iced Americano hero product shot from 4 camera angles simultaneously: top-down, eye-level front, 45-degree hero, side profile. Glossy cup with condensation, deep blue Luckin gradient backdrop, premium commercial lighting."
+                    - generic [ref=e1145]:
+                      - generic [ref=e1146]:
+                        - button "多机位" [ref=e1148] [cursor=pointer]:
+                          - img [ref=e1149]
+                          - generic [ref=e1152]: 多机位
+                          - img [ref=e1153]
+                        - button "四宫格" [ref=e1156] [cursor=pointer]:
+                          - img [ref=e1157]
+                          - generic [ref=e1159]: 四宫格
+                          - img [ref=e1160]
+                        - button "电影" [ref=e1163] [cursor=pointer]:
+                          - img [ref=e1164]
+                          - generic [ref=e1170]: 电影
+                          - img [ref=e1171]
+                        - button "史诗" [ref=e1174] [cursor=pointer]:
+                          - img [ref=e1175]
+                          - generic [ref=e1177]: 史诗
+                          - img [ref=e1178]
+                      - button "Submit" [ref=e1181] [cursor=pointer]:
+                        - img [ref=e1182]
+      - img
+      - generic "Control Panel" [ref=e107]:
+        - button "Zoom In" [ref=e108] [cursor=pointer]:
+          - img [ref=e109]
+        - button "Zoom Out" [disabled]:
+          - img
+        - button "Fit View" [active] [ref=e114] [cursor=pointer]:
+          - img [ref=e115]
+        - button "Toggle Interactivity" [ref=e117] [cursor=pointer]:
+          - img [ref=e118]
+      - img "Mini Map" [ref=e121]

@@ -16,21 +16,14 @@ import {
   renderNegativePresets,
   STYLE_PRESETS,
 } from '../promptCraft'
+import { videoWorkflowRecipe } from './videoWorkflowRecipe'
+import { multimodalInput } from './multimodalInput'
+import { visionVerify } from './visionVerify'
+import { errorRecipes } from './errorRecipes'
+import { DEFAULT_IMAGE_MODEL, DEFAULT_VIDEO_MODEL, DEFAULT_LLM_MODEL, DEFAULT_AUDIO_MODEL, KNOWN_AUDIO_MODELS } from '@/providers/modelDefaults'
+import type { SkillDefinition } from './types'
 
-export interface SkillDefinition {
-  /** 模块唯一标识 */
-  id: string
-  /** 模块中文名 */
-  name: string
-  /** 模块能力概述（1-2 句话） */
-  summary: string
-  /** 详细描述：包含可用工具、参数、流程 */
-  details: string
-  /** 该模块涉及的工具名列表 */
-  tools: string[]
-  /** 该模块涉及的节点类型 */
-  nodeTypes: string[]
-}
+export type { SkillDefinition } from './types'
 
 // ============================================================
 // 1. 角色设计模块
@@ -38,29 +31,64 @@ export interface SkillDefinition {
 const characterDesign: SkillDefinition = {
   id: 'character_design',
   name: '角色设计',
-  summary: '创建角色九宫图参考设定，提取角色特征，管理多角色资产。',
+  summary: '通过统一的 characterAsset 节点（mode=design）创建角色九宫图参考设定，并衔接 extract / registry 两种模式的协作。',
   details: `### 角色设计模块
 
 **核心能力**：基于文字描述生成角色多视角参考图（九宫格），用于后续关键帧和视频生成时保持角色外貌一致性。
 
-**工具链**：
-- \`create_character_grid\` → 创建角色九宫图节点，需填入角色姓名 + 详细外貌特征描述
-- \`execute_node\` → 调用 Gemini 图片模型生成 3×3 九宫格参考图
+**节点类型（task 2.4.x 起）**：所有"角色相关"节点统一为 **\`characterAsset\`**，由 \`data.mode\` 区分用途：
+- \`mode: 'design'\` ← 本 SKILL 主场景：九宫图生成（旧 \`characterGrid\`）
+- \`mode: 'extract'\` ← 从已有视频中提取角色 ref（旧 \`characterExtract\`）
+- \`mode: 'registry'\` ← 画布级角色库 / 多角色聚合（旧 \`characterManager\`）
+
+任意 mode 的内部 schema 字段保留各自语义；端口（handle id）也按 mode 区分（design：\`grid-out\` / \`views-out\`；extract / registry：\`character-out\`）。**新建节点直接走 \`characterAsset\`**——\`flowStore.addNode\` 中的转译层会接受 legacy 类型字符串作为兼容入口，但工具调用应直接使用新名（见下）。
+
+**工具链（推荐，新名）**：
+- \`character.create_grid\` → 创建 design 模式角色节点，需填入 name + description（含发色/服装/体型等关键词）
+- \`character.create_extract\` → 创建 extract 模式节点，从上游 videoGen 抽取角色
+- \`character.create_registry\` → 创建 registry 模式节点，画布级角色库
+- \`execute_node\` → 调用 Gemini 图片模型生成 3×3 九宫格参考图（仅 design mode 适用）
 - \`get_node_output\` → 获取生成结果（base64 图片，自动上传 COS 获取公网 URL）
 
-**输入要求**：
+> Legacy snake_case 名 (\`create_character_grid\` / \`create_character_extract_node\` / \`create_character_manager_node\`) 仍作为 alias 在后端 tool registry 中保留（Phase 4 移除前）以兼容老会话；Agent 现阶段应始终使用 \`character.*\` 形态。
+
+**输入要求（design mode）**：
 - name: 角色姓名（如「李明」「女主角」）
 - description: 外貌特征描述，需包含：发型/发色、五官特征、体型、服装风格、标志性配饰
 - style: 美术风格（anime / realistic / 3d_render / watercolor）
 
 **输出**：九宫格参考图（正面/侧面/背面/表情变化等多视角），同时自动上传至 COS 生成公网 URL。
 
+**黄金调用示例**（用户：「帮我建个赛博女主角」）：
+\`\`\`
+1. character.create_grid({
+     name: "林夏",
+     description: "25-year-old woman with short silver pixie-cut hair, sharp steel-blue eyes, slim athletic build, wearing matte black leather jacket over white t-shirt, silver chain necklace",
+     style: "realistic"
+   })
+   // → 创建 type='characterAsset', data.mode='design' 的节点
+2. execute_node(nodeLabel: "角色: 林夏")
+3. get_node_output(nodeLabel: "角色: 林夏")  // 验证 outputImage 存在
+4. 后续 imageGen 创建后 → canvas.connect(srcLabel: "角色: 林夏", tgtLabel: "镜头N 关键帧")
+   系统自动选择 grid-out → ref-in 端口
+\`\`\`
+
+**多角色聚合（design + registry 协作）**：
+若一个项目有 ≥ 2 角色需要在多镜头共用，建议加一个 registry 节点把多个 design 节点的 \`character-out\`（design 节点的 grid-out 仅图像，不带 character record；如要进入 registry 应通过 extract 路径）汇总后，下游 videoGen 用 character-in 单边引用 registry 即可。
+
 **最佳实践**：
-- 外貌描述越详细，角色一致性越好
-- 描述应使用英文关键词组合，如 "short silver hair, blue eyes, slim build, black leather jacket, silver necklace"
-- 生成后的九宫图可连接到裁切节点，提取单视角图片作为视频首帧`,
-  tools: ['create_character_grid', 'execute_node', 'get_node_output'],
-  nodeTypes: ['characterGrid'],
+- 外貌描述越详细，角色一致性越好——**发色 + 发型 + 眼睛颜色 + 标志服装 + 体型** 五件套必备
+- 描述使用英文关键词组合，避免抽象词（不要"年轻"要"25-year-old"；不要"高大"要"185cm tall, athletic build"）
+- 生成后的九宫图作为参考输入（ref-in）连接到所有下游 imageGen 节点，确保同一角色跨镜头一致
+- 不要为同一角色重复 create_grid——若画布上已存在同名 design 节点，直接 canvas.update_node 修改 description 即可；新建会被 verify_task 标记为冗余`,
+  tools: [
+    'character.create_grid',
+    'character.create_extract',
+    'character.create_registry',
+    'execute_node',
+    'get_node_output',
+  ],
+  nodeTypes: ['characterAsset'],
 }
 
 // ============================================================
@@ -77,7 +105,7 @@ const sceneDesign: SkillDefinition = {
 **工具链**：
 - \`create_scene_grid\` → 创建场景九宫图节点，需填入场景名 + 环境描述 + 风格 + 氛围
 - \`execute_node\` → 调用 Gemini 生成场景参考图
-- \`connect_nodes\` → 将场景图连接到风格锁定节点提取风格特征
+- \`canvas.connect\` → 将场景图连接到风格锁定节点提取风格特征
 
 **输入要求**：
 - name: 场景名称（如「赛博朋克街道」「森林深处」）
@@ -107,14 +135,14 @@ const styleLock: SkillDefinition = {
 
 **工具链**：
 - \`create_style_lock_node\` → 创建风格锁定节点，填入期望的风格描述
-- \`connect_nodes\` → 将场景九宫图连接为参考图输入
+- \`canvas.connect\` → 将场景九宫图连接为参考图输入
 - \`execute_node\` → 调用 LLM 分析参考图提取风格特征
 
 **输入**：参考图片（来自上游节点连线）+ 期望的风格描述文本
 **输出**：结构化风格描述（extractedStyle），可被下游节点读取并融入提示词
 
 **使用场景**：确保同一项目中所有关键帧和视频保持统一的视觉风格`,
-  tools: ['create_style_lock_node', 'connect_nodes', 'execute_node'],
+  tools: ['create_style_lock_node', 'canvas.connect', 'execute_node'],
   nodeTypes: ['styleLock'],
 }
 
@@ -131,7 +159,7 @@ const storyboard: SkillDefinition = {
 
 **工具链**：
 - \`create_storyboard_node\` → 创建分镜脚本节点，填入剧本/创意描述
-- \`connect_nodes\` → 可选连接文本节点作为剧本输入
+- \`canvas.connect\` → 可选连接文本节点作为剧本输入
 - \`execute_node\` → 调用 LLM 生成分镜列表
 - \`get_node_output\` → 获取分镜结果，据此创建后续关键帧和视频节点
 
@@ -163,13 +191,13 @@ const imageGeneration: SkillDefinition = {
 
 **工具链**：
 - \`create_image_node\` → 创建图片生成节点，填入画面描述提示词
-- \`connect_nodes\` → 连接参考图（来自角色裁切/场景/风格锁定节点）
+- \`canvas.connect\` → 连接参考图（来自 characterGrid / sceneGrid / styleLock 节点输出）
 - \`execute_node\` → 调用 Gemini 模型生成图片
-- \`update_node\` → 修改 prompt / aspectRatio / imageSize 等参数
+- \`canvas.update_node\` → 修改 prompt / aspectRatio / imageSize 等参数
 
 **参数**：
 - prompt: 画面描述提示词（英文效果更好）
-- model: gemini-3.1-flash-image-preview（默认）
+- model: ${DEFAULT_IMAGE_MODEL}（默认）
 - aspectRatio: 1:1 / 16:9 / 9:16 / 4:3 / 3:4
 - imageSize: 1k / 2k
 
@@ -177,8 +205,24 @@ const imageGeneration: SkillDefinition = {
 
 **提示词规范**：
 - 结构：[主体] + [动作/姿态] + [环境] + [光影] + [风格] + [画质]
-- 示例："A young woman with silver hair stands on a rooftop overlooking a neon-lit cyberpunk city at night, dramatic rim lighting, cinematic composition, 8K detail"`,
-  tools: ['create_image_node', 'execute_node', 'update_node', 'connect_nodes', 'get_node_output'],
+- 示例："A young woman with silver hair stands on a rooftop overlooking a neon-lit cyberpunk city at night, dramatic rim lighting, cinematic composition, 8K detail"
+- **长度控制**：30-50 词最佳。超过 80 词 质量下降，模型开始“选择性忽略”
+
+**黄金调用示例**（镜头 1：女主角在天台眺望）：
+\`\`\`
+1. create_image_node({
+     prompt: "[Character Anchor]: 25yo woman, silver pixie hair, steel-blue eyes, black leather jacket. Standing on neon-lit rooftop, looking at cyberpunk skyline, rim light from below, cinematic 8K, no morphing, no extra fingers",
+     aspectRatio: "16:9"
+   })
+   → 设置 label 为 "镜头 1 关键帧"
+2. canvas.connect(srcLabel: "角色: 林夏", tgtLabel: "镜头 1 关键帧")
+   → 自动选择 ref-in 端口注入参考图
+3. canvas.connect(srcLabel: "风格锁定", tgtLabel: "镜头 1 关键帧")
+   → 自动选择 style-in 端口注入风格描述
+4. 多镜头时用 parallel_execute(nodeLabels: ["镜头 1 关键帧", "镜头 2 关键帧", ...])
+5. get_node_output(nodeLabel: "镜头 1 关键帧")  // 抽查 outputImage
+\`\`\``,
+  tools: ['create_image_node', 'execute_node', 'canvas.update_node', 'canvas.connect', 'get_node_output'],
   nodeTypes: ['imageGen'],
 }
 
@@ -195,12 +239,12 @@ const imageEdit: SkillDefinition = {
 
 **工具链**：
 - \`create_image_edit_node\` → 创建编辑节点，填入编辑指令
-- \`connect_nodes\` → 连接输入图片（来自 imageGen / characterGrid）
+- \`canvas.connect\` → 连接输入图片（来自 imageGen / characterGrid）
 - \`execute_node\` → 执行编辑
 
 **输入**：editInstruction（编辑指令，如"将背景换成海滩""移除左边的树""给角色加上墨镜"）
 **输出**：编辑后的图片`,
-  tools: ['create_image_edit_node', 'connect_nodes', 'execute_node'],
+  tools: ['create_image_edit_node', 'canvas.connect', 'execute_node'],
   nodeTypes: ['imageEdit'],
 }
 
@@ -240,16 +284,37 @@ const videoGeneration: SkillDefinition = {
 
 **工具链**：
 - \`create_video_node\` → 创建视频节点，指定 model / prompt / size（Seedance）或 aspect_ratio（其他）
-- \`update_node\` → 切换模型或调整参数
-- \`connect_nodes\` → 连接首帧图片（来自 imageGen 节点）
+- \`canvas.update_node\` → 切换模型或调整参数
+- \`canvas.connect\` → 连接首帧图片（来自 imageGen 节点）
 - \`execute_node\` → 提交任务（后端自动路由+降级，异步轮询）
 
 **首帧引导**：图片自动上传到腾讯云 COS 获取公网 URL（视频模型要求 URL 而非 base64）。
 
-**提示词规范**（格式：[Camera] + [Subject] + [Atmosphere] + [Quality] + [Negative]）：
-- **关键**：[Subject] 段必须嵌入角色外貌关键词（发色、服装等），否则模型会改变角色外貌
-- 示例："Slow dolly forward. A woman with short silver hair and black leather jacket walks through rain-soaked neon street with confident stride. Wet pavement reflections, volumetric fog, cool blue and neon pink lighting. Cinematic 4K, 24fps film grain, shallow depth of field. No morphing, no identity drift, no flickering."`,
-  tools: ['create_video_node', 'execute_node', 'update_node', 'connect_nodes', 'get_node_output'],
+**i2v 提示词规范**（首帧图已携带所有静态信息，prompt 专注动作 + 运镜）：
+
+- **格式（自然语言，不要方括号标签）**：
+  \`Camera: <运镜>. Action: <主体动作 + 次级运动>. Keep <锚定项> consistent. Avoid: <具体可视化的失败模式>.\`
+
+- **运镜词偏好**（Sora 2 / VEO / Seedance i2v 模式实测）：
+  ✅ 高成功率：\`subtle push-in\` / \`slow horizontal pan\` / \`gentle dolly forward\` / \`locked-off with parallax\` / \`slow zoom-in\`
+  ❌ 低成功率：\`360 orbit\` / \`crane up\` / \`whip pan\` / \`dutch angle\` —— 首帧锁定让大幅运镜失败率 > 50%
+
+- **Action 描述要点**：
+  - 用动词领起：\`lifts gaze\` / \`stirs the drink\` / \`smiles softly\` / \`pushes forward\`
+  - 加次级运动（让画面"活"）：\`steam wisps drift\` / \`hair sways gently\` / \`light flickers\`
+  - 不要重复首帧已有的静态描述（角色长相/服装/产品 logo）
+
+- **Negative 要写具体名词，不要抽象概念**：
+  ✅ \`warped fingers, extra hands, face distortion, logo flicker, text warping, frame stutter, color shift\`
+  ❌ \`morphing, identity drift, brand inconsistency\` —— Sora 听不懂概念词
+
+- **产品广告场景额外锚定**：
+  - \`Keep product label, logo and packaging perfectly readable throughout.\`
+  - \`Soft ambient motion welcomed; large object displacement is not.\`
+
+**示例（产品广告镜头 1）**：
+\`Camera: subtle push-in with gentle focus pull, smooth steady motion. Action: Luna lifts her gaze from the book, glances toward the warm window light, smiles softly. Steam wisps drift from a nearby cup, hair sways gently. Keep product label and logo perfectly readable. Avoid: warped fingers, extra hands, face distortion, logo flicker, frame stutter.\``,
+  tools: ['create_video_node', 'execute_node', 'canvas.update_node', 'canvas.connect', 'get_node_output'],
   nodeTypes: ['videoGen'],
 }
 
@@ -259,20 +324,20 @@ const videoGeneration: SkillDefinition = {
 const audioGeneration: SkillDefinition = {
   id: 'audio_generation',
   name: '音频配音',
-  summary: '将文本转为语音配音，支持 ElevenLabs / Fish Speech / CosyVoice。',
+  summary: `将文本转为语音配音，支持 ${KNOWN_AUDIO_MODELS.join(' / ')}。`,
   details: `### 音频配音模块
 
 **核心能力**：将旁白/对话文本转化为语音音频，用于视频的配音轨。
 
 **工具链**：
 - \`create_audio_node\` → 创建音频节点，填入文本 + 选择模型 + 声音
-- \`connect_nodes\` → 可连接文本节点作为内容输入
+- \`canvas.connect\` → 可连接文本节点作为内容输入
 - \`execute_node\` → 生成语音
 
-**支持模型**：elevenlabs / fish-speech / cosyvoice
+**支持模型**：${KNOWN_AUDIO_MODELS.join(' / ')}（默认 ${DEFAULT_AUDIO_MODEL}）
 **输入**：text（旁白文本）、model（模型）、voice（声音名称）
 **输出**：音频文件`,
-  tools: ['create_audio_node', 'execute_node', 'connect_nodes'],
+  tools: ['create_audio_node', 'execute_node', 'canvas.connect'],
   nodeTypes: ['audioNode'],
 }
 
@@ -291,8 +356,8 @@ const llmChat: SkillDefinition = {
 - \`create_llm_node\` → 创建 LLM 对话节点，设定 systemPrompt + userInput
 - \`execute_node\` → 发送对话请求获取回复
 
-**默认模型**：gemini-3.1-pro-preview（支持通过 update_node 切换）`,
-  tools: ['create_llm_node', 'execute_node', 'update_node'],
+**默认模型**：${DEFAULT_LLM_MODEL}（支持通过 canvas.update_node 切换）`,
+  tools: ['create_llm_node', 'execute_node', 'canvas.update_node'],
   nodeTypes: ['llmChat'],
 }
 
@@ -325,14 +390,14 @@ const videoStitch: SkillDefinition = {
 
 **工具链**：
 - \`create_video_stitch_node\` → 创建视频拼接节点
-- \`connect_nodes\` → 连接所有 videoGen 节点和 audioNode 的输出
+- \`canvas.connect\` → 连接所有 videoGen 节点和 audioNode 的输出
 - \`execute_node\` → 自动收集所有上游已完成视频的 URL，汇总为 clips 列表
 
 **输入**：多段视频（通过连线，video-in 接视频，audio-in 接音频）
 **输出**：clips 列表（各段视频 URL）+ 拼接后的完整视频
 
 **注意**：执行前必须确保上游视频节点已执行完毕（status=done 且有 outputVideo）`,
-  tools: ['create_video_stitch_node', 'connect_nodes', 'execute_node', 'get_node_output'],
+  tools: ['create_video_stitch_node', 'canvas.connect', 'execute_node', 'get_node_output'],
   nodeTypes: ['videoStitch'],
 }
 
@@ -348,20 +413,20 @@ const workflowManagement: SkillDefinition = {
 **核心能力**：Agent 的元认知层——规划任务步骤、追踪执行进度、验证完成状态、记录偏好。
 
 **工具链**：
-- \`plan_task\` → 将复杂任务拆解为有序步骤
-- \`update_plan_step\` → 标记步骤完成/失败
+- \`plan.create\` → 将复杂任务拆解为有序步骤
+- \`plan.update_step\` → 标记步骤完成/失败
 - \`verify_task\` → 检查画布状态是否符合预期
 - \`batch_execute\` → 批量执行多个节点
 - \`get_canvas_state\` → 获取画布全局状态
-- \`save_memory\` → 保存用户偏好/项目设定到长期记忆
-- \`recall_memory\` → 从记忆中检索相关信息
+- \`memory.save\` → 保存用户偏好/项目设定到长期记忆
+- \`memory.recall\` → 从记忆中检索相关信息
 - \`generate_workflow\` → 一键生成完整工作流骨架
 
 **最佳实践**：
-- 复杂任务先 plan_task 分步，逐步执行并 update_plan_step
+- 复杂任务先 plan.create 分步，逐步执行并 plan.update_step
 - 所有节点执行后 verify_task 自检
-- 用户偏好（风格、常用模型）用 save_memory 记录，后续 recall_memory 复用`,
-  tools: ['plan_task', 'update_plan_step', 'verify_task', 'batch_execute', 'get_canvas_state', 'save_memory', 'recall_memory', 'generate_workflow'],
+- 用户偏好（风格、常用模型）用 memory.save 记录，后续 memory.recall 复用`,
+  tools: ['plan.create', 'plan.update_step', 'verify_task', 'batch_execute', 'get_canvas_state', 'memory.save', 'memory.recall', 'generate_workflow'],
   nodeTypes: [],
 }
 
@@ -405,6 +470,11 @@ const qualityControl: SkillDefinition = {
   - 检查维度：字段完整性、提示词质量（长度/语言/光照/运镜/负面词）、角色一致性、风格统一、技术参数
   - 返回：评分(0-100)、问题列表、优化建议
   - reviewAll=true 审查整个画布；否则指定 nodeLabel/nodeId 审查单个节点
+- \`review_generated_image\` → 审查已生成图片/视频节点的输出质量
+  - 通过 nodeLabel 或 nodeId 定位节点，返回 0-100 评分
+  - 检查维度：输出存在性、状态完整性、提示词丰富度、参考图锚定、风格锁定
+  - 返回 pass/fail + issues + suggestions
+  - 当前为启发式 stub，后续可接入 GPT-4V 进行视觉一致性审查
 - \`optimize_prompt\` → 使用 LLM 自动将粗糙提示词升级为专业级
   - 图片节点：按美术六维优化法（主体/光影/构图/风格/负面/一致性）
   - 视频节点：按摄影五段式公式（Camera/Subject/Environment/Quality/Negative）
@@ -415,8 +485,9 @@ const qualityControl: SkillDefinition = {
 1. 生成工作流或手动创建节点后 → \`review_content\`(reviewAll=true) 全局审查
 2. 发现问题 → \`optimize_prompt\` 逐节点自动优化
 3. 优化完成后 → 再次 \`review_content\` 确认评分提升
-4. 评分 ≥ 80 分 → 开始 \`execute_node\` / \`batch_execute\``,
-  tools: ['review_content', 'optimize_prompt'],
+4. 执行节点后 → \`review_generated_image\` 审查生成结果质量
+5. 评分 ≥ 80 分 → 进入下一步；否则 optimize + 重新 execute`,
+  tools: ['review_content', 'review_generated_image', 'optimize_prompt'],
   nodeTypes: [],
 }
 
@@ -525,6 +596,17 @@ export const ALL_SKILLS: SkillDefinition[] = [
   qualityControl,
   assetLibrary,
   cosUpload,
+  // Extracted from the old monolithic system prompt. Registered here so the
+  // existing phase-map gating works uniformly. `multimodal_input` is further
+  // gated by `hasImages` inside buildSkillsPromptByPhase to avoid loading
+  // routing tables on text-only turns.
+  videoWorkflowRecipe,
+  multimodalInput,
+  visionVerify,
+  // Error recovery playbook — loaded in every phase except `idle`/`full`
+  // (where buildSkillsPrompt() already includes everything). Costs ~600 tokens
+  // but materially reduces blind retries and early give-up behaviour.
+  errorRecipes,
 ]
 
 /**
@@ -559,25 +641,55 @@ export function buildSkillsSummary(): string {
 /**
  * 按工作阶段加载相关 SKILLS（动态瘦身）
  *
- * Phase 映射：
+ * 双体系映射（已统一）：
+ *
+ * Canvas-inferred phases (detectCurrentPhase 推断):
  * - pre_production: 角色设计 + 场景设计 + 风格锁定 + 分镜 + 工作流管理
  * - production:     图片生成 + 图片编辑 + 视频生成 + 提示词工艺
  * - post_production: 音频 + 连续性检查 + 视频拼接 + 质量控制
- * - full:           全部（默认）
+ *
+ * Agent-declared phases (phase.set 自声明):
+ * - planning:  规划 → 工作流 + 分镜 + LLM
+ * - designing: 角色/场景/风格设计
+ * - building:  全面创建 + 生成 + 提示词
+ * - reviewing: 质量审查 + 优化
+ * - executing: 执行 + 音频 + 拼接
+ * - idle / full: 全部
  */
+// `error_recipes` is appended below to every non-idle phase so the agent
+// always has the failure playbook handy — errors can occur in any phase.
 const PHASE_SKILL_MAP: Record<string, string[]> = {
-  pre_production: ['character_design', 'scene_design', 'style_lock', 'storyboard', 'workflow_management', 'llm_chat', 'asset_library'],
-  production: ['image_generation', 'image_edit', 'video_generation', 'prompt_craft', 'style_lock', 'character_design', 'asset_library'],
-  post_production: ['audio_generation', 'continuity_check', 'video_stitch', 'quality_control'],
+  // Canvas-inferred phases
+  pre_production: ['character_design', 'scene_design', 'style_lock', 'storyboard', 'workflow_management', 'llm_chat', 'asset_library', 'video_workflow_recipe', 'error_recipes'],
+  production: ['image_generation', 'image_edit', 'video_generation', 'prompt_craft', 'style_lock', 'character_design', 'asset_library', 'video_workflow_recipe', 'error_recipes'],
+  post_production: ['audio_generation', 'continuity_check', 'video_stitch', 'quality_control', 'vision_verify', 'error_recipes'],
+  // Agent-declared phases (phase.set)
+  planning: ['workflow_management', 'storyboard', 'llm_chat', 'asset_library', 'video_workflow_recipe', 'error_recipes'],
+  designing: ['character_design', 'scene_design', 'style_lock', 'storyboard', 'asset_library', 'error_recipes'],
+  building: ['image_generation', 'image_edit', 'video_generation', 'prompt_craft', 'character_design', 'scene_design', 'style_lock', 'workflow_management', 'asset_library', 'video_workflow_recipe', 'error_recipes'],
+  reviewing: ['quality_control', 'prompt_craft', 'continuity_check', 'vision_verify', 'error_recipes'],
+  executing: ['image_generation', 'video_generation', 'audio_generation', 'video_stitch', 'continuity_check', 'video_workflow_recipe', 'error_recipes'],
 }
 
-export function buildSkillsPromptByPhase(phase?: string): string {
+/** Options for phase-aware skill selection. */
+export interface BuildSkillsOptions {
+  /** When true, includes the `multimodal_input` skill (only relevant if the current user message carries images). */
+  hasImages?: boolean
+}
+
+export function buildSkillsPromptByPhase(phase?: string, options: BuildSkillsOptions = {}): string {
+  const { hasImages = false } = options
   if (!phase || phase === 'full') return buildSkillsPrompt()
 
   const skillIds = PHASE_SKILL_MAP[phase]
   if (!skillIds) return buildSkillsPrompt()
 
-  const filtered = ALL_SKILLS.filter(s => skillIds.includes(s.id))
+  // Token-saving gate: multimodal routing is only useful when the current
+  // user turn actually has images. Load it on-demand, and keep it out of the
+  // phase maps so it never leaks into cheap text-only turns.
+  const effectiveIds = hasImages ? [...skillIds, 'multimodal_input'] : skillIds
+
+  const filtered = ALL_SKILLS.filter(s => effectiveIds.includes(s.id))
   if (filtered.length === 0) return buildSkillsPrompt()
 
   const indexRows = filtered
@@ -586,7 +698,7 @@ export function buildSkillsPromptByPhase(phase?: string): string {
   const indexTable = `| 模块 | 核心工具（前3）| 节点类型 |\n|------|--------------|----------|\n${indexRows.join('\n')}`
   const sections = filtered.map(skill => skill.details)
 
-  const otherSkills = ALL_SKILLS.filter(s => !skillIds.includes(s.id))
+  const otherSkills = ALL_SKILLS.filter(s => !effectiveIds.includes(s.id))
   const otherSummary = otherSkills.length > 0
     ? `\n\n> 其他可用模块（本阶段非重点）：${otherSkills.map(s => s.name).join('、')}`
     : ''

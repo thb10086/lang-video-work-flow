@@ -14,6 +14,7 @@
 import { useFlowStore } from '@/store/flowStore'
 import { useSettingsStore } from '@/store/settingsStore'
 import { backendApi } from '@/api/backend'
+import { api } from '@/api/client'
 import { DEFAULT_IMAGE_MODEL, TASK_TOKEN_BUDGETS } from '@/providers/modelDefaults'
 import type { ExecutionResult } from '../nodeExecutor'
 
@@ -68,7 +69,7 @@ Output ONLY a valid JSON array with no additional text:
     "emotionIntensity": <1-10, where 1=calm and 10=climactic>,
     "charactersPresent": ["Character A", "Character B"],
     "imagePrompt": "ENGLISH image prompt following 6-dimension method: [Subject with full appearance anchor] + [Pose/Action] + [Environment] + [Lighting direction+color] + [Art style+quality] + [Composition]. No negative words here. Example: 'A 25-year-old woman with short silver pixie-cut hair, sharp blue eyes, wearing matte black leather jacket, standing on rain-soaked rooftop gazing at neon cityscape, dramatic rim lighting from behind, shallow DOF, cinematic 8K, medium close-up eye-level'",
-    "videoPrompt": "ENGLISH video prompt following 5-section formula: [Camera]: movement + speed. [Subject]: character anchor + action + expression. [Environment]: setting + lighting + weather. [Quality]: Cinematic 4K, 24fps, lens style, color grade. [Negative]: No morphing, no identity drift, no flickering.",
+    "videoPrompt": "ENGLISH i2v-friendly prompt in natural language. Format: 'Camera: <subtle motion>. Action: <verb-led subject motion> + <secondary motion>. Keep <character/product anchors> consistent. Avoid: <concrete failure nouns>.' Camera prefers: subtle push-in / slow horizontal pan / gentle dolly forward / locked-off with parallax. Avoid: 360 orbit, whip pan, crane up. Negative must list concrete nouns: warped fingers, extra hands, face distortion, logo flicker, text warping, frame stutter (NOT abstract words like morphing/drift).",
     "dialogue": "中文对话或旁白文本（无对话则为空字符串）",
     "dialogueEN": "English translation of dialogue/narration (empty string if none)",
     "audioHint": "Audio cue: ambient sound, music style, or SFX (e.g. 'soft piano, rain ambience' or 'tense electronic beats')"
@@ -204,6 +205,22 @@ export async function executeLLMChat(nodeId: string): Promise<ExecutionResult> {
     text = res.text || ''
 
     store.updateNodeData(nodeId, { status: 'done', response: text })
+
+    // Builder-driven side-effect: tutorial & similar flows tag the llm node with
+    // `downstreamTextNodeId` instead of creating an illegal llm → textNode edge
+    // (textNode has no text-in port). We honor that tag here.
+    const downstreamTextNodeId = node.data.downstreamTextNodeId as string | undefined
+    if (downstreamTextNodeId && text) {
+      // Read fresh state here — the snapshot captured at the top of
+      // executeLLMChat could be stale if the user deleted/replaced the
+      // downstream textNode during the async LLM round-trip.
+      const live = useFlowStore.getState()
+      const downstream = live.nodes.find(n => n.id === downstreamTextNodeId)
+      if (downstream && downstream.type === 'textNode') {
+        live.updateNodeData(downstreamTextNodeId, { content: text })
+      }
+    }
+
     return { success: true, message: `LLM 对话「${node.data.label}」完成`, output: text }
   } catch (err) {
     const msg = err instanceof Error ? err.message : '调用失败'
@@ -221,11 +238,14 @@ export async function executeImageEdit(nodeId: string): Promise<ExecutionResult>
   }
 
   const inputImage = node.data.inputImage as string | null
-  const editPrompt = String(node.data.editPrompt || node.data.editInstruction || '')
+  // Canonical key is editInstruction (matches Agent tool + UI). editPrompt is
+  // a deprecated alias kept for one release to migrate persisted workflows.
+  // TODO(remove after next release): drop editPrompt fallback.
+  const editInstruction = String(node.data.editInstruction || node.data.editPrompt || '')
   if (!inputImage) {
     return { success: false, message: `图片编辑节点「${node.data.label}」缺少输入图片（请连接上游图片节点）` }
   }
-  if (!editPrompt.trim()) {
+  if (!editInstruction.trim()) {
     return { success: false, message: `图片编辑节点「${node.data.label}」缺少编辑指令` }
   }
 
@@ -237,7 +257,7 @@ export async function executeImageEdit(nodeId: string): Promise<ExecutionResult>
 
     const res = await backendApi.generateImage({
       model_id: currentModel,
-      prompt: `Edit this image: ${editPrompt}`,
+      prompt: `Edit this image: ${editInstruction}`,
       reference_images: [inputImage],
       params: { aspectRatio: '1:1' },
     })
@@ -434,6 +454,120 @@ export async function executeVideoStitch(nodeId: string): Promise<ExecutionResul
   }
 }
 
+// ── Timeline: collect upstream video/audio inputs and compute cut points ──
+//
+// Reads upstream `videoGen` / `videoStitch` (via `video-in`) and `audioNode`
+// (via `audio-in`) connections, builds a structured `outputCuts` JSON the
+// downstream stitch / render node can consume. Durations are sourced from
+// upstream node data when available, otherwise we fall back to a default
+// per-clip duration so the visualisation still renders.
+export async function executeTimeline(nodeId: string): Promise<ExecutionResult> {
+  const store = useFlowStore.getState()
+  const node = store.nodes.find(n => n.id === nodeId)
+  if (!node || node.type !== 'timeline') {
+    return { success: false, message: `未找到时间轴节点 (${nodeId})` }
+  }
+
+  const DEFAULT_VIDEO_DURATION_SEC = 5
+  const DEFAULT_AUDIO_DURATION_SEC = 8
+
+  // Sort edges left → right so the timeline mirrors visual canvas order.
+  const sortByX = (a: { source: string }, b: { source: string }): number => {
+    const ax = store.nodes.find(n => n.id === a.source)?.position.x ?? 0
+    const bx = store.nodes.find(n => n.id === b.source)?.position.x ?? 0
+    return ax - bx
+  }
+
+  const videoEdges = store.edges
+    .filter(e => e.target === nodeId && e.targetHandle === 'video-in')
+    .sort(sortByX)
+  const audioEdges = store.edges
+    .filter(e => e.target === nodeId && e.targetHandle === 'audio-in')
+    .sort(sortByX)
+
+  const videoClips: Array<{ id: string; url: string; label: string; durationSec: number }> = []
+  const audioClips: Array<{ id: string; url: string; label: string; durationSec: number }> = []
+
+  for (const edge of videoEdges) {
+    const src = store.nodes.find(n => n.id === edge.source)
+    if (!src) continue
+    const d = src.data as Record<string, unknown>
+    const url = (d.outputVideo as string | undefined) || (d.outputUrl as string | undefined)
+    if (!url) continue
+    const duration = Number(d.duration ?? d.durationSec ?? DEFAULT_VIDEO_DURATION_SEC)
+    videoClips.push({
+      id: src.id,
+      url,
+      label: String(d.label || src.id),
+      durationSec: Number.isFinite(duration) && duration > 0 ? duration : DEFAULT_VIDEO_DURATION_SEC,
+    })
+  }
+
+  for (const edge of audioEdges) {
+    const src = store.nodes.find(n => n.id === edge.source)
+    if (!src) continue
+    const d = src.data as Record<string, unknown>
+    const url = (d.outputAudio as string | undefined) || (d.outputUrl as string | undefined)
+    if (!url) continue
+    const duration = Number(d.duration ?? d.durationSec ?? DEFAULT_AUDIO_DURATION_SEC)
+    audioClips.push({
+      id: src.id,
+      url,
+      label: String(d.label || src.id),
+      durationSec: Number.isFinite(duration) && duration > 0 ? duration : DEFAULT_AUDIO_DURATION_SEC,
+    })
+  }
+
+  if (videoClips.length === 0 && audioClips.length === 0) {
+    store.updateNodeData(nodeId, { status: 'error', errorMsg: '无可用上游输入' })
+    return {
+      success: false,
+      message: `时间轴节点「${node.data.label}」未连接任何已生成的视频或音频节点`,
+    }
+  }
+
+  // Compute cumulative offsets — both tracks start at 0 and lay out sequentially.
+  let cursor = 0
+  const videoTrack = videoClips.map((c) => {
+    const start = cursor
+    cursor += c.durationSec
+    return { ...c, startSec: start }
+  })
+  const totalVideoDuration = cursor
+
+  cursor = 0
+  const audioTrack = audioClips.map((c) => {
+    const start = cursor
+    cursor += c.durationSec
+    return { ...c, startSec: start }
+  })
+  const totalAudioDuration = cursor
+
+  const totalDurationSec = Math.max(totalVideoDuration, totalAudioDuration)
+  const cutPoints = videoTrack.slice(1).map((c) => c.startSec)
+
+  const outputCuts = {
+    totalDurationSec,
+    videoTrack,
+    audioTrack,
+    cutPoints,
+  }
+
+  store.updateNodeData(nodeId, {
+    status: 'done',
+    videoClips: videoTrack,
+    audioClips: audioTrack,
+    outputCuts,
+    errorMsg: null,
+  })
+
+  return {
+    success: true,
+    message: `时间轴生成完成：${videoClips.length} 段视频 / ${audioClips.length} 段音频，总时长 ${totalDurationSec.toFixed(1)}s，${cutPoints.length} 个剪切点`,
+    output: JSON.stringify(outputCuts),
+  }
+}
+
 // ── Audio Node: placeholder (no TTS adapter yet) ──
 export async function executeAudioNode(nodeId: string): Promise<ExecutionResult> {
   const store = useFlowStore.getState()
@@ -452,5 +586,64 @@ export async function executeAudioNode(nodeId: string): Promise<ExecutionResult>
   return {
     success: true,
     message: `音频节点「${node.data.label}」已就绪（文本: "${text.slice(0, 60)}"）。注意：TTS 生成功能尚未接入，请在工作流完成后手动导出旁白文本并使用外部工具生成配音，或跳过此步骤直接进行视频拼接。`,
+  }
+}
+
+// ── Character Extract: extract character anchor from a video via backend ──
+
+export async function executeCharacterExtract(nodeId: string): Promise<ExecutionResult> {
+  const store = useFlowStore.getState()
+  const node = store.nodes.find(n => n.id === nodeId)
+  if (!node || node.type !== 'characterExtract') {
+    return { success: false, message: `未找到角色提取节点 (${nodeId})` }
+  }
+
+  // Input: either a direct videoUrl (from pullFromUpstream) or a task_id
+  // (when an upstream videoGen just finished and produced a task id).
+  const videoUrl = (node.data.videoUrl as string | null) || null
+  const taskId = (node.data.taskId as string | null) || null
+  if (!videoUrl && !taskId) {
+    return {
+      success: false,
+      message: `角色提取节点「${node.data.label}」缺少视频输入，请连接上游视频生成节点`,
+    }
+  }
+
+  store.updateNodeData(nodeId, {
+    status: 'extracting',
+    errorMsg: null,
+    characterId: null,
+    characterUrl: null,
+  })
+
+  try {
+    const timestamps = String(node.data.timestamps || '1,3')
+    const result = await api.post<{ id: string; url?: string }>(
+      '/api/character/extract',
+      {
+        from_task_id: taskId || undefined,
+        video_url: videoUrl || undefined,
+        timestamps,
+      },
+    )
+
+    store.updateNodeData(nodeId, {
+      status: 'done',
+      characterId: result.id,
+      characterUrl: result.url || null,
+    })
+
+    return {
+      success: true,
+      message: `角色提取完成：${result.id}${result.url ? '（含缩略图）' : ''}`,
+      output: result.url || result.id,
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : '提取失败'
+    store.updateNodeData(nodeId, { status: 'error', errorMsg: msg })
+    return {
+      success: false,
+      message: `角色提取节点「${node.data.label}」失败：${msg}`,
+    }
   }
 }

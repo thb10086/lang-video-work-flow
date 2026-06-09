@@ -1,0 +1,15 @@
+﻿=== Shot: 鎴愬搧灞曠ず | subType: multi-camera | layout: 2x2 | 4 panels ===
+
+Storyboard sheet for shot "鎴愬搧灞曠ず", displayed as a single composite image with 4 panels arranged in a 2x2 grid layout. Thin light-gray dividing lines separate each panel. Each panel is numbered top-left to bottom-right.
+
+SHOT: Luckin Iced Americano hero product shot from 4 camera angles simultaneously: top-down, eye-level front, 45-degree hero, side profile. Glossy cup with condensation, deep blue Luckin gradient backdrop, premium commercial lighting.
+STYLE: cinematic
+MOOD: epic
+
+PANEL LAYOUT 鈥?MULTI-CAMERA COVERAGE:
+All panels capture the SAME frozen moment in time from different camera angles (e.g. wide / medium / close-up / over-the-shoulder / Dutch / low-angle / high-angle / POV). The action, lighting, and character poses are identical 鈥?only the camera's perspective changes.
+CONSISTENCY RULES:
+- All panels share identical lighting, time-of-day, character pose, and expression
+- Same characters in the same positions in 3D space across all angles
+- Only the camera viewpoint and focal length change between panels
+TECHNICAL: Cinematic composition per panel, professional color grading, consistent character identity / outfit / proportions across all panels, no text or numbers overlaid on the image, no watermarks. Output a single high-resolution composite image.

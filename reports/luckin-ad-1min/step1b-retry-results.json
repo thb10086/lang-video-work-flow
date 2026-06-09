@@ -1,0 +1,60 @@
+﻿{
+    "total_elapsed_s":  236,
+    "step":  "step1b-retry-character-shots",
+    "ref_strategy":  "character-only (no product ref to avoid toapis multi-ref 500)",
+    "failed":  5,
+    "results":  [
+                    {
+                        "shot_id":  3,
+                        "ok":  false,
+                        "error":  "远程服务器返回错误: (500) 内部服务器错误。",
+                        "elapsed_s":  221,
+                        "shot_label":  "林溪推门进店",
+                        "PSComputerName":  "localhost",
+                        "RunspaceId":  "eded35cc-455f-42ee-906d-bb55cd0a3c2d",
+                        "PSShowComputerName":  false
+                    },
+                    {
+                        "shot_id":  4,
+                        "ok":  false,
+                        "error":  "远程服务器返回错误: (500) 内部服务器错误。",
+                        "elapsed_s":  226,
+                        "shot_label":  "自助点单",
+                        "PSComputerName":  "localhost",
+                        "RunspaceId":  "56300ef3-36d6-4eda-8268-b4e5c39a3ffd",
+                        "PSShowComputerName":  false
+                    },
+                    {
+                        "shot_id":  5,
+                        "ok":  false,
+                        "error":  "远程服务器返回错误: (500) 内部服务器错误。",
+                        "elapsed_s":  222,
+                        "shot_label":  "窗边轻啜",
+                        "PSComputerName":  "localhost",
+                        "RunspaceId":  "352f1612-9f20-4b3d-a96e-861c251e870c",
+                        "PSShowComputerName":  false
+                    },
+                    {
+                        "shot_id":  6,
+                        "ok":  false,
+                        "error":  "远程服务器返回错误: (500) 内部服务器错误。",
+                        "elapsed_s":  219,
+                        "shot_label":  "啜饮回味",
+                        "PSComputerName":  "localhost",
+                        "RunspaceId":  "ee3b72a6-df7f-4266-a07f-520f8e0cdb31",
+                        "PSShowComputerName":  false
+                    },
+                    {
+                        "shot_id":  7,
+                        "ok":  false,
+                        "error":  "远程服务器返回错误: (500) 内部服务器错误。",
+                        "elapsed_s":  233,
+                        "shot_label":  "街头举杯",
+                        "PSComputerName":  "localhost",
+                        "RunspaceId":  "586f73d6-a4d4-44e4-8f6f-f8cd1dc06849",
+                        "PSShowComputerName":  false
+                    }
+                ],
+    "character_url":  "https://files.toapis.com/images/tsk_img_01KRK0F94E9EREE82MD3XKM503/1778754536_1bd37324.png",
+    "successful":  0
+}

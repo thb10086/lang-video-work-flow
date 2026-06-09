@@ -35,6 +35,7 @@ vi.mock('@/lib/env', () => ({
 import { useFlowStore } from '@/store/flowStore'
 import { executeNode, executeNodesBatch } from '@/providers/nodeExecutor'
 import { executeToolCall } from '@/providers/agentTools'
+import { isLegacyCharacterNode } from './_helpers/characterAssetTestHelpers'
 
 // ── store 重置 ──
 function reset() {
@@ -211,7 +212,7 @@ describe('generate_workflow — 节点标签命名约定', () => {
     })
     expect(result.success).toBe(true)
     const nodes = useFlowStore.getState().nodes
-    const charNode = nodes.find(n => n.type === 'characterGrid')
+    const charNode = nodes.find(n => isLegacyCharacterNode(n, 'characterGrid'))
     expect(charNode).toBeDefined()
     expect(String(charNode!.data?.label)).toBe('角色: 林夏')
   })
@@ -279,7 +280,7 @@ describe('generate_workflow — 节点标签命名约定', () => {
       shotCount: 2,
     })
     const { nodes, edges } = useFlowStore.getState()
-    const charNodes = nodes.filter(n => n.type === 'characterGrid')
+    const charNodes = nodes.filter(n => isLegacyCharacterNode(n, 'characterGrid'))
     const imgNodes = nodes.filter(n => n.type === 'imageGen')
 
     expect(charNodes).toHaveLength(2)
@@ -289,7 +290,7 @@ describe('generate_workflow — 节点标签命名约定', () => {
     const charToImgEdges = edges.filter(e => {
       const src = nodes.find(n => n.id === e.source)
       const tgt = nodes.find(n => n.id === e.target)
-      return src?.type === 'characterGrid' && tgt?.type === 'imageGen' && e.targetHandle === 'ref-in'
+      return isLegacyCharacterNode(src, 'characterGrid') && tgt?.type === 'imageGen' && e.targetHandle === 'ref-in'
     })
     // 2 chars × 2 imageGen = 4 条 ref-in 边
     expect(charToImgEdges.length).toBe(4)

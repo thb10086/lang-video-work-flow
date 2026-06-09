@@ -8,7 +8,7 @@
  */
 
 import type { Node, Edge } from '@xyflow/react'
-import { DEFAULT_IMAGE_MODEL, DEFAULT_LLM_MODEL, DEFAULT_VIDEO_MODEL, DEFAULT_VIDEO_SIZE, DEFAULT_VIDEO_DURATION } from '@/providers/modelDefaults'
+import { DEFAULT_IMAGE_MODEL, DEFAULT_LLM_MODEL, DEFAULT_VIDEO_MODEL, DEFAULT_AUDIO_MODEL, DEFAULT_VIDEO_SIZE, DEFAULT_VIDEO_DURATION } from '@/providers/modelDefaults'
 import { sanitizeOnModelSwitch } from '@/providers/paramSanitizer'
 import type { ParamField } from '@/providers/types'
 import type { AiModelResponse } from '@/api/backend'
@@ -132,7 +132,7 @@ export const BUILTIN_TEMPLATES: WorkflowTemplate[] = [
       { id: 'img2', type: 'imageGen', position: { x: 450, y: 700 }, data: { label: '说明图2', model: DEFAULT_IMAGE_MODEL, prompt: '', aspectRatio: '16:9', outputImage: null, status: 'idle' } },
       { id: 'vid1', type: 'videoGen', position: { x: 850, y: 400 }, data: { label: '片段1', model: DEFAULT_VIDEO_MODEL, prompt: '', size: DEFAULT_VIDEO_SIZE, duration: 15, outputVideo: null, status: 'idle' } },
       { id: 'vid2', type: 'videoGen', position: { x: 850, y: 700 }, data: { label: '片段2', model: DEFAULT_VIDEO_MODEL, prompt: '', size: DEFAULT_VIDEO_SIZE, duration: 15, outputVideo: null, status: 'idle' } },
-      { id: 'audio', type: 'audioNode', position: { x: 850, y: 100 }, data: { label: '配音', model: 'elevenlabs', text: '', voice: 'default', outputAudio: null, status: 'idle' } },
+      { id: 'audio', type: 'audioNode', position: { x: 850, y: 100 }, data: { label: '配音', model: DEFAULT_AUDIO_MODEL, text: '', voice: 'default', outputAudio: null, status: 'idle' } },
       { id: 'stitch', type: 'videoStitch', position: { x: 1250, y: 550 }, data: { label: '最终合成', clips: [], outputUrl: null } },
     ],
     edges: [
@@ -163,7 +163,7 @@ export const BUILTIN_TEMPLATES: WorkflowTemplate[] = [
       { id: 'vid1', type: 'videoGen', position: { x: 1250, y: 50 }, data: { label: '镜头1 视频', model: DEFAULT_VIDEO_MODEL, prompt: '', size: DEFAULT_VIDEO_SIZE, duration: DEFAULT_VIDEO_DURATION, outputVideo: null, status: 'idle' } },
       { id: 'vid2', type: 'videoGen', position: { x: 1250, y: 350 }, data: { label: '镜头2 视频', model: DEFAULT_VIDEO_MODEL, prompt: '', size: DEFAULT_VIDEO_SIZE, duration: DEFAULT_VIDEO_DURATION, outputVideo: null, status: 'idle' } },
       { id: 'vid3', type: 'videoGen', position: { x: 1250, y: 650 }, data: { label: '镜头3 视频', model: DEFAULT_VIDEO_MODEL, prompt: '', size: DEFAULT_VIDEO_SIZE, duration: DEFAULT_VIDEO_DURATION, outputVideo: null, status: 'idle' } },
-      { id: 'audio', type: 'audioNode', position: { x: 1250, y: 900 }, data: { label: '角色配音', model: 'elevenlabs', text: '', voice: 'default', outputAudio: null, status: 'idle' } },
+      { id: 'audio', type: 'audioNode', position: { x: 1250, y: 900 }, data: { label: '角色配音', model: DEFAULT_AUDIO_MODEL, text: '', voice: 'default', outputAudio: null, status: 'idle' } },
       { id: 'stitch', type: 'videoStitch', position: { x: 1650, y: 350 }, data: { label: '最终合成', clips: [], outputUrl: null } },
     ],
     edges: [
@@ -208,7 +208,7 @@ export const BUILTIN_TEMPLATES: WorkflowTemplate[] = [
       { id: 'vid1', type: 'videoGen', position: { x: 1250, y: 50 }, data: { label: '外景 dolly', model: DEFAULT_VIDEO_MODEL, prompt: '', size: DEFAULT_VIDEO_SIZE, duration: DEFAULT_VIDEO_DURATION, outputVideo: null, status: 'idle' } },
       { id: 'vid2', type: 'videoGen', position: { x: 1250, y: 350 }, data: { label: '内景 tracking', model: DEFAULT_VIDEO_MODEL, prompt: '', size: DEFAULT_VIDEO_SIZE, duration: DEFAULT_VIDEO_DURATION, outputVideo: null, status: 'idle' } },
       { id: 'vid3', type: 'videoGen', position: { x: 1250, y: 650 }, data: { label: '特写 push-in', model: DEFAULT_VIDEO_MODEL, prompt: '', size: DEFAULT_VIDEO_SIZE, duration: DEFAULT_VIDEO_DURATION, outputVideo: null, status: 'idle' } },
-      { id: 'audio', type: 'audioNode', position: { x: 1250, y: 900 }, data: { label: '旁白/BGM', model: 'elevenlabs', text: '', voice: 'default', outputAudio: null, status: 'idle' } },
+      { id: 'audio', type: 'audioNode', position: { x: 1250, y: 900 }, data: { label: '旁白/BGM', model: DEFAULT_AUDIO_MODEL, text: '', voice: 'default', outputAudio: null, status: 'idle' } },
       { id: 'stitch', type: 'videoStitch', position: { x: 1650, y: 350 }, data: { label: '最终合成', clips: [], outputUrl: null } },
     ],
     edges: [
@@ -247,7 +247,7 @@ export const BUILTIN_TEMPLATES: WorkflowTemplate[] = [
       { id: 'vid2', type: 'videoGen', position: { x: 850, y: 600 }, data: { label: 'Beat2 视频', model: DEFAULT_VIDEO_MODEL, prompt: '', size: DEFAULT_VIDEO_SIZE, duration: 4, outputVideo: null, status: 'idle' } },
       { id: 'vid3', type: 'videoGen', position: { x: 850, y: 850 }, data: { label: 'Beat3 视频', model: DEFAULT_VIDEO_MODEL, prompt: '', size: DEFAULT_VIDEO_SIZE, duration: 4, outputVideo: null, status: 'idle' } },
       { id: 'vid4', type: 'videoGen', position: { x: 850, y: 1100 }, data: { label: 'Beat4 视频', model: DEFAULT_VIDEO_MODEL, prompt: '', size: DEFAULT_VIDEO_SIZE, duration: 4, outputVideo: null, status: 'idle' } },
-      { id: 'audio', type: 'audioNode', position: { x: 850, y: 50 }, data: { label: '音乐/BGM', model: 'elevenlabs', text: '', voice: 'default', outputAudio: null, status: 'idle' } },
+      { id: 'audio', type: 'audioNode', position: { x: 850, y: 50 }, data: { label: '音乐/BGM', model: DEFAULT_AUDIO_MODEL, text: '', voice: 'default', outputAudio: null, status: 'idle' } },
       { id: 'stitch', type: 'videoStitch', position: { x: 1250, y: 600 }, data: { label: '最终合成', clips: [], outputUrl: null } },
     ],
     edges: [

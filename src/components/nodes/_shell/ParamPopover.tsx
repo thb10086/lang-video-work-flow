@@ -92,7 +92,7 @@ export default function ParamPopover({
       {trigger({ open, toggle, close })}
       {open && (
         <div
-          className={`libtv-popover ${positionClasses}`}
+          className={`libtv-popover nodrag nowheel nopan ${positionClasses}`}
           style={{ width, transformOrigin: placement === 'top' ? 'bottom center' : 'top center' }}
         >
           {children}

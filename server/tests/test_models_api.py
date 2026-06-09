@@ -1,6 +1,9 @@
 """
 T1-01: Models API 白盒测试
 
+Count 断言从 `MODELS_SEED` 动态计算（避免每加一个新模型都要改测试）。
+Key 身份断言保留 hardcode（保护“某个重要模型不能从 seed 被意外删除”）。
+
 测试覆盖:
   - GET /api/models — 全量 + 按 capability 筛选
   - GET /api/models/{model_id} — 单模型 + 404
@@ -10,6 +13,12 @@ T1-01: Models API 白盒测试
   - DELETE /api/models/{db_id} — 软删除
   - 种子数据完整性校验
 """
+from app.db.seed import MODELS_SEED
+
+_VIDEO = [m for m in MODELS_SEED if m["capability"] == "video"]
+_IMAGE = [m for m in MODELS_SEED if m["capability"] == "image"]
+_TEXT  = [m for m in MODELS_SEED if m["capability"] == "text"]
+_AUDIO = [m for m in MODELS_SEED if m["capability"] == "audio"]
 
 
 # ═══════════════════════════════════════════════════════════
@@ -25,13 +34,13 @@ class TestSeedDataIntegrity:
         body = resp.json()
         assert body["code"] == 0
         items = body["data"]["items"]
-        assert len(items) == 15
+        assert len(items) == len(MODELS_SEED)
 
     def test_filter_image_models(self, client):
         resp = client.get("/api/models?capability=image")
         assert resp.status_code == 200
         items = resp.json()["data"]["items"]
-        assert len(items) == 2
+        assert len(items) == len(_IMAGE)
         model_ids = {m["model_id"] for m in items}
         assert "gemini-3.1-flash-image-preview" in model_ids
         assert "gemini-3-pro-image-preview" in model_ids
@@ -40,7 +49,7 @@ class TestSeedDataIntegrity:
         resp = client.get("/api/models?capability=text")
         assert resp.status_code == 200
         items = resp.json()["data"]["items"]
-        assert len(items) == 4
+        assert len(items) == len(_TEXT)
         model_ids = {m["model_id"] for m in items}
         assert "gemini-3.1-pro-preview" in model_ids
         assert "gpt-5.4" in model_ids
@@ -51,17 +60,20 @@ class TestSeedDataIntegrity:
         resp = client.get("/api/models?capability=video")
         assert resp.status_code == 200
         items = resp.json()["data"]["items"]
-        assert len(items) == 6
+        assert len(items) == len(_VIDEO)
         model_ids = {m["model_id"] for m in items}
+        # 重要 SKU：seed 保持不变的核心视频模型身份不能丢
         assert "doubao-seedance-2-0" in model_ids
         assert "veo3.1-fast" in model_ids
-        assert "kling-v3" in model_ids
+        assert "kling-v2-6" in model_ids  # 更名后的正式 id（旧测试写 kling-v3 过期）
+        assert "sora-2-vvip" in model_ids
+        assert "grok-video-3" in model_ids  # 2026-05 接入
 
     def test_filter_audio_models(self, client):
         resp = client.get("/api/models?capability=audio")
         assert resp.status_code == 200
         items = resp.json()["data"]["items"]
-        assert len(items) == 3
+        assert len(items) == len(_AUDIO)
 
     def test_model_has_param_schema(self, client):
         """Seedance 2.0 应该有完整的 param_schema"""

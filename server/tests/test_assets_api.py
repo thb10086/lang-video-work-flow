@@ -209,8 +209,10 @@ class TestVariations:
     def test_remove_variation(self, client: TestClient):
         c = _make_character(client, "VarRm")
         aid = c["asset_id"]
-        v1 = client.post(f"/api/assets/{aid}/variations", json={"label": "a"}).json()["data"]["variations"][0]
-        v2 = client.post(f"/api/assets/{aid}/variations", json={"label": "b"}).json()["data"]["variations"][0]
+        r1 = client.post(f"/api/assets/{aid}/variations", json={"label": "a"}).json()["data"]
+        v1 = r1["variations"][-1]  # last element = newly added "a"
+        r2 = client.post(f"/api/assets/{aid}/variations", json={"label": "b"}).json()["data"]
+        v2 = r2["variations"][-1]  # last element = newly added "b"
 
         r = client.delete(f"/api/assets/{aid}/variations/{v1['id']}")
         assert r.status_code == 200

@@ -11,11 +11,12 @@
  * The chip label summarises the whole drawer ("16:9 · 720P · 5s").
  */
 
-import { memo, useCallback, useMemo } from 'react'
+import { memo, useCallback, useEffect, useMemo } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import {
-  Play, Video, Film, ImagePlus, Layers, Tag, Aperture, ShieldCheck,
+  Play, Video, Film, ImagePlus, Layers, Aperture, UserCircle,
   Loader2, AlertTriangle, Volume2, VolumeX, Sparkles, ChevronDown,
+  Palette, Maximize2,
 } from 'lucide-react'
 
 import { useFlowStore } from '@/store/flowStore'
@@ -28,14 +29,17 @@ import { useSlashMenu } from '@/hooks/useSlashMenu'
 import SlashMenu, { type SlashCommand } from '@/components/canvas/SlashMenu'
 import { sanitizeForExecute, sanitizeOnModelSwitch } from '@/providers/paramSanitizer'
 import { resolvePromptRefs } from '@/providers/assetReferenceResolver'
+import { resolveCharacterNames } from '@/providers/characterNameResolver'
 import { injectVideoReferences } from '@/providers/modelReferenceAdapter'
+import { togglePromptKeyword, replacePromptKeyword } from '@/components/nodes/_shell/promptKeywords'
 import PromptInput from '@/components/ui/PromptInput'
 
 import {
-  NodeShell, PreviewArea, ModeTabs, ActionChips, NodeToolbar, SubmitButton,
+  NodeShell, PreviewArea, ModeTabs, NodeToolbar, SubmitButton,
   ParamPopover, AspectRatioPicker, SegmentedPicker, DurationSlider,
-  DEFAULT_VIDEO_RATIOS,
-  type ModeTabItem, type ActionChipItem,
+  StylePicker, CameraPicker, ShotPicker, CharacterPicker,
+  DEFAULT_VIDEO_RATIOS, DEFAULT_STYLE_PRESETS, CAMERA_MOVEMENTS, CAMERA_ANGLES, DEFAULT_SHOTS,
+  type ModeTabItem, type StylePreset, type CameraPreset, type ShotPreset, type CharacterRef,
 } from '@/components/nodes/_shell'
 
 // ── Types ──
@@ -227,17 +231,39 @@ function VideoGenNode({ id, data }: NodeProps) {
     updateNodeData(id, { status: 'generating', errorMsg: null, outputVideo: null, progress: 0 })
 
     try {
-      // 1) Resolve @assetId tokens in the prompt → expanded text + aggregated refs
+      // 1a) Resolve @asset_id tokens (ASCII) → expanded text + refs from assetStore
       const assetStore = useAssetStore.getState()
       const refList = Array.isArray(data.assetRefs) ? (data.assetRefs as string[]) : []
       const resolved = resolvePromptRefs(currentPrompt, assetStore, refList)
 
-      // 2) Gather explicit first/last frames from the node itself
+      // 1b) Resolve @角色名 tokens (CharacterPicker) → pull characterUrls from CharacterManager
+      const flowNodes = useFlowStore.getState().nodes
+      const nameResolved = resolveCharacterNames(resolved.expandedPrompt, flowNodes)
+
+      // Merge union of resolved refs from both sources
+      const mergedReferenceImages = Array.from(
+        new Set([...resolved.referenceImages, ...nameResolved.referenceImages]),
+      )
+      const mergedCharacterUrls = Array.from(
+        new Set([...resolved.characterUrls, ...nameResolved.characterUrls]),
+      )
+      const mergedUnresolved = [...resolved.unresolved, ...nameResolved.unresolved]
+      const expandedPrompt = nameResolved.expandedPrompt
+
+      // 2) Gather explicit first/last frames + character image from the node itself
+      //    (populated by nodeExecutor's propagateNodeOutput via character-in edge)
       const existingImages: string[] = []
       const firstFrame = (data.firstFrameImage || data.firstFrameImageUrl) as string | undefined
       const lastFrame = (data.lastFrameImage || data.lastFrameImageUrl) as string | undefined
+      const charImage = (data.characterImage || data.characterUrl) as string | undefined
       if (firstFrame) existingImages.push(firstFrame)
       if (lastFrame) existingImages.push(lastFrame)
+      if (charImage && !mergedReferenceImages.includes(charImage)) {
+        mergedReferenceImages.push(charImage)
+      }
+      if (charImage && !mergedCharacterUrls.includes(charImage)) {
+        mergedCharacterUrls.push(charImage)
+      }
 
       // 3) Pick schema for sanitizer + adapter
       const bm = backendVideoModels.find(m => m.model_id === currentModel)
@@ -245,8 +271,8 @@ function VideoGenNode({ id, data }: NodeProps) {
 
       // 4) Model-specific injection: reference images → correct fields for this model
       const adaptation = injectVideoReferences(currentModel, schema, {
-        referenceImages: resolved.referenceImages,
-        characterUrls: resolved.characterUrls,
+        referenceImages: mergedReferenceImages,
+        characterUrls: mergedCharacterUrls,
         timestamps: resolved.timestamps,
         existingImages,
       })
@@ -255,13 +281,13 @@ function VideoGenNode({ id, data }: NodeProps) {
       // user can see truncation/ignored-field warnings without opening devtools.
       updateNodeData(id, {
         adapterNotes: adaptation.notes.length > 0 ? adaptation.notes : undefined,
-        unresolvedRefs: resolved.unresolved.length > 0 ? resolved.unresolved : undefined,
+        unresolvedRefs: mergedUnresolved.length > 0 ? mergedUnresolved : undefined,
       })
       if (adaptation.notes.length > 0) {
         console.debug('[VideoGenNode] adapter notes:', adaptation.notes)
       }
-      if (resolved.unresolved.length > 0) {
-        console.warn('[VideoGenNode] unresolved asset tokens:', resolved.unresolved)
+      if (mergedUnresolved.length > 0) {
+        console.warn('[VideoGenNode] unresolved tokens:', mergedUnresolved)
       }
 
       // 5) Merge node-driven params with adapter-added params, then sanitize
@@ -274,25 +300,35 @@ function VideoGenNode({ id, data }: NodeProps) {
 
       const res = await backendApi.submitVideo({
         model_id: currentModel,
-        prompt: resolved.expandedPrompt,
+        prompt: expandedPrompt,
         images: adaptation.images.length > 0 ? adaptation.images : undefined,
         params,
       })
       updateNodeData(id, { taskId: res.task_id })
 
-      // Start polling
+      // Start polling.
+      // 关键：toapis 在 status=completed 那一瞬间，output_url 可能尚未就绪（result.data
+      // 还没填入）。如果我们在 completed 立刻 clearInterval，节点就永远拿不到 url。
+      // 因此停止条件改为：status=failed 直接停；status=completed 但必须 output_url
+      // 已就绪才停；否则继续轮询，最多 maxAttempts 次。
+      let attempts = 0
+      const maxAttempts = 24  // 24 * 5s = 2min 兜底，避免无限轮询
       const pollInterval = setInterval(async () => {
+        attempts += 1
         try {
           const taskStatus = await backendApi.queryTask(res.task_id)
+          const isCompleted = taskStatus.status === 'completed'
+          const isFailed = taskStatus.status === 'failed'
+          const hasUrl = !!taskStatus.output_url
           updateNodeData(id, {
-            status: taskStatus.status === 'completed' ? 'done'
-              : taskStatus.status === 'failed' ? 'error'
+            status: isCompleted && hasUrl ? 'done'
+              : isFailed ? 'error'
               : 'generating',
             progress: taskStatus.progress || 0,
             outputVideo: taskStatus.output_url || null,
             errorMsg: taskStatus.error || null,
           })
-          if (taskStatus.status === 'completed' || taskStatus.status === 'failed') {
+          if (isFailed || (isCompleted && hasUrl) || attempts >= maxAttempts) {
             clearInterval(pollInterval)
           }
         } catch (pollErr) {
@@ -305,12 +341,75 @@ function VideoGenNode({ id, data }: NodeProps) {
     }
   }, [id, data, status, updateNodeData, backendVideoModels])
 
-  // ── Suggested actions (quick-start chips under the mode tabs) ──
-  const actionChips: ActionChipItem[] = useMemo(() => ([
-    { key: 'tag',      icon: Tag,          label: '标记' },
-    { key: 'camera',   icon: Aperture,     label: '运镜' },
-    { key: 'character',icon: ShieldCheck,  label: '角色库' },
-  ]), [])
+  // ── Recovery: 修复"僵尸节点" — status=done 但 outputVideo=null 的情况 ──
+  // 触发场景：旧版轮询在 status=completed 那一瞬间停止，但当时 toapis 的
+  // output_url 还没就绪。导致节点永远显示空的 preview 区。
+  // 兜底：节点 mount 后若检测到此状态 + 已有 taskId，主动 fetch 一次任务最新结果。
+  const taskId = data.taskId as string | undefined
+  useEffect(() => {
+    if (status !== 'done' || outputVideo || !taskId) return
+    let cancelled = false
+    backendApi.queryTask(taskId).then((t) => {
+      if (cancelled) return
+      if (t.output_url) {
+        updateNodeData(id, { outputVideo: t.output_url })
+      }
+    }).catch(() => { /* swallow — best effort */ })
+    return () => { cancelled = true }
+  }, [id, status, outputVideo, taskId, updateNodeData])
+
+  // ── Prompt-keyword-driven picker state ──
+  // Each picker toggles keywords inside the prompt; the "active" visual state
+  // is derived from which keywords are currently present in the prompt.
+
+  const activeStyleIds = useMemo(
+    () => DEFAULT_STYLE_PRESETS.filter(p => prompt.toLowerCase().includes(p.keyword.toLowerCase())).map(p => p.id),
+    [prompt],
+  )
+  const activeCameraIds = useMemo(() => {
+    const all = [...CAMERA_MOVEMENTS, ...CAMERA_ANGLES]
+    return all.filter(p => prompt.toLowerCase().includes(p.keyword.toLowerCase())).map(p => p.id)
+  }, [prompt])
+  const activeShotId = useMemo(() => {
+    const match = DEFAULT_SHOTS.find(s => prompt.toLowerCase().includes(s.keyword.toLowerCase()))
+    return match?.id || ''
+  }, [prompt])
+
+  const handleStylePick = useCallback((preset: StylePreset) => {
+    updateNodeData(id, { prompt: togglePromptKeyword(prompt, preset.keyword) })
+  }, [id, prompt, updateNodeData])
+
+  const handleCameraPick = useCallback((preset: CameraPreset) => {
+    // Camera is multi-select — movement can combine with angle
+    const update: Record<string, unknown> = {
+      prompt: togglePromptKeyword(prompt, preset.keyword),
+    }
+    // Semantic → model-param bridge: Doubao Seedance exposes `camera_fixed`,
+    // which maps to our "静止" preset. For any movement preset we unset it.
+    const hasCameraFixed = paramSchema.some(f => f.key === 'camera_fixed')
+    if (hasCameraFixed) {
+      if (preset.id === 'static') {
+        update.camera_fixed = true
+      } else if (CAMERA_MOVEMENTS.some(m => m.id === preset.id)) {
+        update.camera_fixed = false
+      }
+    }
+    updateNodeData(id, update)
+  }, [id, prompt, paramSchema, updateNodeData])
+
+  const handleShotPick = useCallback((preset: ShotPreset) => {
+    // Shot size is single-select — replace any existing shot keyword
+    const allShotKeywords = DEFAULT_SHOTS.map(s => s.keyword)
+    const current = activeShotId === preset.id ? '' : preset.keyword  // click active = clear
+    updateNodeData(id, { prompt: replacePromptKeyword(prompt, allShotKeywords, current) })
+  }, [id, prompt, activeShotId, updateNodeData])
+
+  const handleCharacterPick = useCallback((character: CharacterRef) => {
+    const token = `@${character.name}`
+    if (prompt.includes(token)) return  // already present
+    const next = prompt.trim() ? `${prompt.trim()} ${token}` : token
+    updateNodeData(id, { prompt: next })
+  }, [id, prompt, updateNodeData])
 
   // ── Empty state suggestions (shown when no output yet) ──
   const emptySuggestions = useMemo(() => ([
@@ -401,7 +500,7 @@ function VideoGenNode({ id, data }: NodeProps) {
       <Handle type="target" position={Position.Left} id="character-in" style={{ top: '65%' }} />
       <Handle type="source" position={Position.Right} id="video-out" />
 
-      <div className="p-3 space-y-2.5">
+      <div className="p-3 pb-3.5 space-y-2.5">
         {/* ── 1. PREVIEW ── */}
         <PreviewArea
           aspect={previewAspect}
@@ -446,7 +545,88 @@ function VideoGenNode({ id, data }: NodeProps) {
         {/* ── 2. INPUT ── */}
         <div className="space-y-2">
           <ModeTabs tabs={MODE_TABS} value={mode} onChange={handleModeChange} />
-          <ActionChips actions={actionChips} />
+
+          {/* Quick-action chips — each opens a LibTV-style picker popover.
+             Active state is derived from whether the preset keyword is in the prompt. */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <ParamPopover
+              align="start" placement="top" width={320}
+              trigger={({ toggle, open }) => (
+                <button
+                  type="button"
+                  onClick={toggle}
+                  className={`libtv-chip nodrag relative ${activeStyleIds.length > 0 ? 'libtv-chip--active' : ''} ${open ? 'ring-1 ring-[hsl(var(--libtv-accent)/0.5)]' : ''}`}
+                >
+                  <Palette size={12} strokeWidth={1.75} />
+                  <span>风格</span>
+                  {activeStyleIds.length > 0 && (
+                    <span className="ml-0.5 min-w-[14px] h-[14px] px-1 rounded-full bg-[hsl(var(--libtv-accent))] text-white text-[9px] font-bold flex items-center justify-center">
+                      {activeStyleIds.length}
+                    </span>
+                  )}
+                </button>
+              )}
+            >
+              <StylePicker activeIds={activeStyleIds} onPick={handleStylePick} />
+            </ParamPopover>
+
+            <ParamPopover
+              align="start" placement="top" width={340}
+              trigger={({ toggle, open }) => (
+                <button
+                  type="button"
+                  onClick={toggle}
+                  className={`libtv-chip nodrag relative ${activeCameraIds.length > 0 ? 'libtv-chip--active' : ''} ${open ? 'ring-1 ring-[hsl(var(--libtv-accent)/0.5)]' : ''}`}
+                >
+                  <Aperture size={12} strokeWidth={1.75} />
+                  <span>运镜</span>
+                  {activeCameraIds.length > 0 && (
+                    <span className="ml-0.5 min-w-[14px] h-[14px] px-1 rounded-full bg-[hsl(var(--libtv-accent))] text-white text-[9px] font-bold flex items-center justify-center">
+                      {activeCameraIds.length}
+                    </span>
+                  )}
+                </button>
+              )}
+            >
+              <CameraPicker activeIds={activeCameraIds} onPick={handleCameraPick} />
+            </ParamPopover>
+
+            <ParamPopover
+              align="start" placement="top" width={320}
+              trigger={({ toggle, open }) => {
+                const active = DEFAULT_SHOTS.find(s => s.id === activeShotId)
+                return (
+                  <button
+                    type="button"
+                    onClick={toggle}
+                    className={`libtv-chip nodrag ${active ? 'libtv-chip--active' : ''} ${open ? 'ring-1 ring-[hsl(var(--libtv-accent)/0.5)]' : ''}`}
+                  >
+                    <Maximize2 size={12} strokeWidth={1.75} />
+                    <span>{active ? active.label : '景别'}</span>
+                  </button>
+                )
+              }}
+            >
+              <ShotPicker value={activeShotId} onChange={handleShotPick} />
+            </ParamPopover>
+
+            <ParamPopover
+              align="start" placement="top" width={300}
+              trigger={({ toggle, open }) => (
+                <button
+                  type="button"
+                  onClick={toggle}
+                  className={`libtv-chip nodrag ${open ? 'ring-1 ring-[hsl(var(--libtv-accent)/0.5)]' : ''}`}
+                >
+                  <UserCircle size={12} strokeWidth={1.75} />
+                  <span>角色库</span>
+                  <ChevronDown size={11} strokeWidth={2} className="opacity-60" />
+                </button>
+              )}
+            >
+              <CharacterPicker onPick={handleCharacterPick} />
+            </ParamPopover>
+          </div>
 
           <div className="relative">
             <PromptInput

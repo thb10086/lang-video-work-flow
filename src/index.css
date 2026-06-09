@@ -112,6 +112,8 @@
 /* React Flow overrides */
 .react-flow__node {
   font-family: inherit;
+  /* Allow popovers / ghost-plus buttons to render outside the node bounding box */
+  overflow: visible !important;
 }
 
 .react-flow__attribution {
@@ -160,16 +162,6 @@
   }
 }
 
-@keyframes pulse-border {
-  0%, 100% { box-shadow: 0 0 0 2px hsl(var(--primary) / 0.3); }
-  50% { box-shadow: 0 0 0 2px hsl(var(--primary) / 0.7), 0 0 12px hsl(var(--primary) / 0.2); }
-}
-
-@keyframes progress-flow {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
-
 @keyframes slide-in-right {
   from { transform: translateX(100%); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
@@ -188,63 +180,6 @@
 @keyframes scale-in {
   from { opacity: 0; transform: scale(0.95); }
   to { opacity: 1; transform: scale(1); }
-}
-
-.workflow-node {
-  animation: node-appear 0.25s cubic-bezier(0.22, 1, 0.36, 1);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  transition: box-shadow 0.2s ease, transform 0.15s ease;
-}
-
-/* Node executing state */
-.workflow-node--executing {
-  animation: pulse-border 1.5s ease-in-out infinite;
-}
-
-.workflow-node--executing::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, hsl(var(--primary)), transparent);
-  background-size: 200% 100%;
-  animation: progress-flow 1.5s ease-in-out infinite;
-  border-radius: 999px;
-}
-
-/* Dark mode: glassmorphism + soft glow */
-.dark .workflow-node {
-  background: hsl(var(--card) / 0.85);
-  box-shadow:
-    0 4px 12px rgb(0 0 0 / 0.4),
-    0 0 0 1px hsl(var(--border) / 0.5);
-}
-
-/* Light mode: subtle lift */
-:root:not(.dark) .workflow-node {
-  background: hsl(var(--card) / 0.92);
-  box-shadow:
-    0 2px 8px rgb(0 0 0 / 0.08),
-    0 0 0 1px hsl(var(--border) / 0.4);
-}
-
-/* Selected node: primary glow ring */
-.react-flow__node.selected .workflow-node {
-  box-shadow:
-    0 0 0 2px hsl(var(--primary)),
-    0 0 16px hsl(var(--primary) / 0.2),
-    0 4px 12px rgb(0 0 0 / 0.2);
-}
-
-/* Hover: slight elevation */
-.react-flow__node:hover .workflow-node {
-  box-shadow:
-    0 8px 24px rgb(0 0 0 / 0.12),
-    0 0 0 1px hsl(var(--border) / 0.6);
-  transform: translateY(-1px);
 }
 
 /* Selected edge: glow */
@@ -330,6 +265,7 @@
   --libtv-muted: 240 4% 50%;
   --libtv-accent: 262 68% 54%;
   --libtv-ghost-plus: 240 5% 80%;
+  --libtv-line: 240 4% 85%;
 }
 
 .dark {
@@ -344,6 +280,7 @@
   --libtv-muted: 240 5% 55%;
   --libtv-accent: 262 80% 72%;
   --libtv-ghost-plus: 240 5% 30%;
+  --libtv-line: 240 5% 22%;
 }
 
 /* Node shell — no border, no heavy shadow, all about content */
@@ -353,6 +290,7 @@
   color: hsl(var(--foreground));
   font-family: inherit;
   position: relative;
+  overflow: visible;
   transition: box-shadow 0.2s ease, transform 0.15s ease;
   animation: node-appear 0.25s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -379,6 +317,18 @@
 }
 .dark .react-flow__node:hover .libtv-node {
   box-shadow: 0 0 0 1px hsl(var(--libtv-node-hairline) / 0.8), 0 12px 32px rgb(0 0 0 / 0.4);
+}
+
+/* Executing state: pulsing accent glow ring */
+.libtv-node--executing {
+  box-shadow:
+    0 0 0 1.5px hsl(var(--libtv-accent) / 0.6),
+    0 0 16px hsl(var(--libtv-accent) / 0.2);
+  animation: libtv-pulse 1.8s ease-in-out infinite;
+}
+@keyframes libtv-pulse {
+  0%, 100% { box-shadow: 0 0 0 1.5px hsl(var(--libtv-accent) / 0.6), 0 0 16px hsl(var(--libtv-accent) / 0.15); }
+  50%      { box-shadow: 0 0 0 2px   hsl(var(--libtv-accent) / 0.9), 0 0 28px hsl(var(--libtv-accent) / 0.3); }
 }
 
 /* Preview area shared style */
@@ -643,4 +593,98 @@
 .sidebar-icon-strip button.active {
   background: hsl(var(--primary) / 0.12);
   color: hsl(var(--primary));
+}
+
+/* ────────────────────────────────────────────────────────────
+   Agent Experience Overhaul — Motion design tokens
+   See src/lib/motion.ts for the JavaScript-side mirror.
+   All animations animate transform / opacity only (no layout reflow).
+   Respects prefers-reduced-motion.
+   ──────────────────────────────────────────────────────────── */
+
+@keyframes agent-node-mount {
+  from { opacity: 0; transform: scale(0.6); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes agent-node-success-flash {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+@keyframes agent-node-error-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+@keyframes agent-pulse-ring {
+  0%   { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.5); }
+  70%  { box-shadow: 0 0 0 8px hsl(var(--primary) / 0); }
+  100% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0); }
+}
+@keyframes agent-tool-bubble-entry {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes agent-dialog-panel-entry {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes agent-dialog-backdrop-entry {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes agent-marching-ants {
+  to { stroke-dashoffset: -16; }
+}
+@keyframes agent-token-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.anim-node-mount         { animation: agent-node-mount 0.32s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.anim-success-flash      { animation: agent-node-success-flash 0.42s ease-out both; }
+.anim-error-shake        { animation: agent-node-error-shake 0.42s ease-out both; }
+.anim-pulse-ring         { animation: agent-pulse-ring 1.2s ease-out infinite; }
+.anim-tool-bubble        { animation: agent-tool-bubble-entry 0.22s ease-out both; }
+.anim-dialog-panel       { animation: agent-dialog-panel-entry 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.anim-dialog-backdrop    { animation: agent-dialog-backdrop-entry 0.18s ease-out both; }
+.anim-token-fade         { animation: agent-token-fade 0.2s ease-out both; }
+
+/* Marching ants for "data flowing" edges (executor running). */
+.edge-marching path {
+  stroke-dasharray: 6 4;
+  animation: agent-marching-ants 0.8s linear infinite;
+}
+
+/* Highlight ring used for canvas ↔ chat binding. */
+.node-highlighted {
+  position: relative;
+  z-index: 2;
+}
+.node-highlighted::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 14px;
+  pointer-events: none;
+  border: 2px solid hsl(var(--primary));
+  animation: agent-pulse-ring 1.2s ease-out infinite;
+}
+
+/* Honor user's reduced-motion preference. */
+@media (prefers-reduced-motion: reduce) {
+  .anim-node-mount,
+  .anim-success-flash,
+  .anim-error-shake,
+  .anim-pulse-ring,
+  .anim-tool-bubble,
+  .anim-dialog-panel,
+  .anim-dialog-backdrop,
+  .anim-token-fade,
+  .edge-marching path,
+  .node-highlighted::after {
+    animation: none !important;
+  }
 }

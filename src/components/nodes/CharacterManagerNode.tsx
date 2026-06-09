@@ -1,7 +1,17 @@
+/**
+ * CharacterManagerNode — LibTV-style character registry.
+ *
+ * A canvas-level registry of reusable character anchors. Each entry can be
+ * edited inline (name + short description) and copied by downstream nodes
+ * as a reference. Characters can be added manually or flow in via
+ * character-in from upstream CharacterExtract / CharacterGrid nodes.
+ */
 import { memo, useCallback } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { Users, Plus, Trash2, Copy } from 'lucide-react'
+import { Users, Plus, Trash2, Copy, UserCircle } from 'lucide-react'
+
 import { useFlowStore } from '@/store/flowStore'
+import { NodeShell, NodeToolbar } from '@/components/nodes/_shell'
 
 interface CharacterEntry {
   id: string
@@ -12,7 +22,7 @@ interface CharacterEntry {
   description?: string
 }
 
-function CharacterManagerNode({ id, data, selected }: NodeProps) {
+function CharacterManagerNode({ id, data }: NodeProps) {
   const label = String(data.label || '角色管理器')
   const characters = (data.characters as CharacterEntry[]) || []
 
@@ -44,95 +54,121 @@ function CharacterManagerNode({ id, data, selected }: NodeProps) {
     navigator.clipboard.writeText(url).catch(() => {})
   }, [])
 
-  const borderClass = selected
-    ? 'border-indigo-500 shadow-indigo-200'
-    : 'border-border'
+  const nodes = useFlowStore(s => s.nodes)
+  const handleGhostConnect = useCallback((side: 'left' | 'right') => {
+    const self = nodes.find(n => n.id === id)
+    if (!self) return
+    const offset = side === 'left' ? -340 : 340
+    const position = { x: (self.position?.x ?? 0) + offset, y: self.position?.y ?? 0 }
+    window.dispatchEvent(new CustomEvent('libtv-ghost-connect', {
+      detail: { sourceNodeId: id, side, position },
+    }))
+  }, [nodes, id])
+
+  const labelRightSlot = (
+    <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-[hsl(var(--libtv-chip-bg))] text-[hsl(var(--libtv-chip-fg))]">
+      {characters.length} 角色
+    </span>
+  )
 
   return (
-    <div className={`workflow-node bg-card border-2 rounded-xl shadow-lg w-[300px] transition-all duration-300 ${borderClass}`}>
-      <Handle type="target" position={Position.Left} id="character-in" className="!w-3 !h-3 !bg-cyan-400" />
+    <NodeShell
+      icon={<Users size={11} strokeWidth={2.5} />}
+      label={label}
+      labelRight={labelRightSlot}
+      width={360}
+      ghostConnect={{ left: true, right: true }}
+      onGhostConnect={handleGhostConnect}
+    >
+      <Handle type="target" position={Position.Left} id="character-in" />
+      <Handle type="source" position={Position.Right} id="character-out" />
 
-      {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 bg-indigo-500/10 rounded-t-xl border-b border-border">
-        <Users className="w-4 h-4 text-indigo-500" />
-        <span className="font-semibold text-sm">{label}</span>
-        <span className="text-[10px] text-muted-foreground ml-auto">{characters.length} 角色</span>
-      </div>
-
-      {/* Content */}
-      <div className="p-3 space-y-2">
+      <div className="p-3 space-y-2.5">
+        {/* ── CHARACTER LIST ── */}
         {characters.length === 0 ? (
-          <div className="text-xs text-muted-foreground text-center py-4">
-            暂无角色。点击下方添加，或连接角色提取节点的输出。
+          <div className="libtv-preview flex items-center justify-center p-6" style={{ aspectRatio: 'auto', minHeight: 120 }}>
+            <div className="flex flex-col items-center gap-1.5 text-[hsl(var(--libtv-muted))]">
+              <UserCircle size={32} strokeWidth={1.5} />
+              <span className="text-[11px]">点击下方添加角色</span>
+              <span className="text-[10px] opacity-60">或连接上游角色提取节点</span>
+            </div>
           </div>
         ) : (
-          <div className="space-y-2 max-h-[250px] overflow-y-auto">
-            {characters.map((char) => (
-              <div key={char.id} className="bg-muted/40 rounded-lg p-2 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <input
-                    type="text"
-                    value={char.name}
-                    onChange={(e) => handleUpdateCharacter(char.id, 'name', e.target.value)}
-                    className="text-xs font-semibold bg-transparent border-0 outline-none flex-1 min-w-0"
-                    placeholder="角色名称"
-                  />
-                  <button
-                    onClick={() => handleRemoveCharacter(char.id)}
-                    className="p-0.5 rounded hover:bg-red-100 transition-colors"
-                  >
-                    <Trash2 className="w-3 h-3 text-red-400" />
-                  </button>
-                </div>
-
-                <input
-                  type="text"
-                  value={char.description || ''}
-                  onChange={(e) => handleUpdateCharacter(char.id, 'description', e.target.value)}
-                  className="w-full text-[10px] bg-transparent border-0 outline-none text-muted-foreground"
-                  placeholder="角色描述..."
-                />
-
-                {char.characterId && (
-                  <div className="flex items-center gap-1">
-                    <span className="text-[9px] text-cyan-600 font-mono truncate flex-1">
-                      ID: {char.characterId}
-                    </span>
-                    {char.characterUrl && (
-                      <button
-                        onClick={() => handleCopyCharacterUrl(char.characterUrl!)}
-                        className="p-0.5 rounded hover:bg-muted transition-colors"
-                        title="复制 Character URL"
-                      >
-                        <Copy className="w-2.5 h-2.5 text-muted-foreground" />
-                      </button>
+          <div className="rounded-xl border border-[hsl(var(--libtv-line))] bg-[hsl(var(--libtv-chip-bg)/0.4)] overflow-hidden">
+            <div className="max-h-[260px] overflow-y-auto divide-y divide-[hsl(var(--libtv-line))]">
+              {characters.map((char) => (
+                <div key={char.id} className="px-2.5 py-2 space-y-1.5 hover:bg-[hsl(var(--libtv-chip-bg-hover)/0.5)] transition-colors">
+                  <div className="flex items-center gap-2">
+                    {char.thumbnailUrl ? (
+                      <img src={char.thumbnailUrl} alt={char.name} className="w-9 h-9 rounded-lg object-cover" />
+                    ) : (
+                      <div className="w-9 h-9 rounded-lg bg-[hsl(var(--libtv-accent)/0.15)] flex items-center justify-center shrink-0">
+                        <UserCircle size={18} className="text-[hsl(var(--libtv-accent))]" />
+                      </div>
                     )}
+                    <div className="flex-1 min-w-0 space-y-0.5">
+                      <input
+                        type="text"
+                        value={char.name}
+                        onChange={(e) => handleUpdateCharacter(char.id, 'name', e.target.value)}
+                        className="w-full text-[11px] font-semibold bg-transparent border-0 outline-none text-[hsl(var(--foreground))]"
+                        placeholder="角色名称"
+                      />
+                      <input
+                        type="text"
+                        value={char.description || ''}
+                        onChange={(e) => handleUpdateCharacter(char.id, 'description', e.target.value)}
+                        className="w-full text-[10px] bg-transparent border-0 outline-none text-[hsl(var(--libtv-muted))]"
+                        placeholder="描述（服装、特征…）"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveCharacter(char.id)}
+                      className="p-1 rounded-lg hover:bg-[hsl(var(--destructive)/0.15)] transition-colors"
+                      title="删除"
+                    >
+                      <Trash2 size={11} className="text-[hsl(var(--destructive)/0.8)]" />
+                    </button>
                   </div>
-                )}
-
-                {char.thumbnailUrl && (
-                  <div className="w-full h-16 rounded overflow-hidden">
-                    <img src={char.thumbnailUrl} alt={char.name} className="w-full h-full object-cover" />
-                  </div>
-                )}
-              </div>
-            ))}
+                  {char.characterId && (
+                    <div className="flex items-center gap-1 pl-11">
+                      <span className="text-[9px] text-[hsl(var(--libtv-accent))] font-mono truncate flex-1">
+                        {char.characterId}
+                      </span>
+                      {char.characterUrl && (
+                        <button
+                          type="button"
+                          onClick={() => handleCopyCharacterUrl(char.characterUrl!)}
+                          className="p-0.5 rounded hover:bg-[hsl(var(--libtv-chip-bg))] transition-colors"
+                          title="复制 Character URL"
+                        >
+                          <Copy size={10} className="text-[hsl(var(--libtv-muted))]" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
-      </div>
 
-      {/* Footer */}
-      <div className="px-4 py-2 border-t border-border">
-        <button
-          onClick={handleAddCharacter}
-          className="w-full py-1.5 rounded-md text-xs font-medium flex items-center justify-center gap-1.5 bg-indigo-500 text-white hover:bg-indigo-600 transition-colors"
-        >
-          <Plus className="w-3 h-3" /> 添加角色
-        </button>
+        {/* ── TOOLBAR: add button as ghost chip on left ── */}
+        <NodeToolbar
+          left={
+            <button
+              type="button"
+              onClick={handleAddCharacter}
+              className="libtv-chip libtv-chip--ghost"
+            >
+              <Plus size={12} strokeWidth={2.5} />
+              <span>添加角色</span>
+            </button>
+          }
+        />
       </div>
-
-      <Handle type="source" position={Position.Right} id="character-out" className="!w-3 !h-3 !bg-cyan-400" />
-    </div>
+    </NodeShell>
   )
 }
 

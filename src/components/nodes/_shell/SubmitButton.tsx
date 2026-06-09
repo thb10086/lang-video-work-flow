@@ -29,7 +29,7 @@ export default function SubmitButton({
         <button
           type="button"
           onClick={onStop}
-          className="libtv-submit"
+          className="libtv-submit nodrag"
           title={title || '停止'}
           aria-label="Stop"
         >
@@ -38,7 +38,7 @@ export default function SubmitButton({
       )
     }
     return (
-      <div className="libtv-submit" aria-label="Loading">
+      <div className="libtv-submit nodrag" aria-label="Loading">
         <Loader2 size={14} className="animate-spin" strokeWidth={2.5} />
       </div>
     )
@@ -49,7 +49,7 @@ export default function SubmitButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="libtv-submit"
+      className="libtv-submit nodrag"
       title={title || '生成'}
       aria-label="Submit"
     >

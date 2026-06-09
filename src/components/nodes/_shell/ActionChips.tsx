@@ -35,7 +35,7 @@ export default function ActionChips({ actions, className = '' }: ActionChipsProp
           type="button"
           disabled={a.disabled}
           onClick={a.onClick}
-          className={`libtv-chip ${
+          className={`libtv-chip nodrag ${
             a.active ? 'libtv-chip--active' : a.variant === 'ghost' ? 'libtv-chip--ghost' : ''
           } ${a.disabled ? 'opacity-40 cursor-not-allowed' : ''} relative`}
         >

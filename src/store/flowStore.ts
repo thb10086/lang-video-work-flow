@@ -31,6 +31,11 @@ export interface FlowState {
   edges: Edge[]
   selectedNodeId: string | null
 
+  // Highlighted nodes (canvas ↔ chat binding — see agent-canvas-conversation-binding spec).
+  // Used by AgentChat hover and ProgressTimeline tool-card click to focus the
+  // user's attention on the nodes affected by a given message/tool.
+  highlightedNodeIds: Set<string>
+
   // Character appearance registry (name → English appearance description)
   characterAppearances: Record<string, string>
 
@@ -56,6 +61,9 @@ export interface FlowState {
   clearAll: () => void
   exportWorkflow: () => string
   importWorkflow: (json: string) => void
+
+  // Highlight (canvas ↔ chat binding)
+  setHighlight: (ids: string[] | null) => void
 
   // Character appearance registry
   setCharacterAppearance: (name: string, description: string) => void
@@ -86,6 +94,7 @@ export const useFlowStore = create<FlowState>((set, get) => ({
   nodes: [],
   edges: [],
   selectedNodeId: null,
+  highlightedNodeIds: new Set<string>(),
   characterAppearances: {},
   projectId: null,
   workflowId: null,
@@ -165,18 +174,39 @@ export const useFlowStore = create<FlowState>((set, get) => ({
   onConnect: (connection: Connection) => {
     get().pushHistory()
     set({ edges: addEdge({ ...connection, animated: true }, get().edges) })
+    get().scheduleAutoSave()
   },
 
   addNode: (type, position, data) => {
     get().pushHistory()
     const id = generateId()
+
+    // Legacy → unified character node translation (task 2.4.3).
+    // Picker entries (NodePanel / QuickNodePanel / ContextMenu) and
+    // programmatic creators (createFromAsset etc.) still pass legacy
+    // type strings — we keep that ergonomic at the call sites and
+    // collapse them to the `characterAsset` schema *here*, so newly
+    // created nodes never bypass the migration. The same translation
+    // is implemented for-existing-nodes by
+    // `migrateCharacterAssetNodes` in `workflowMigrations.ts`.
+    let resolvedType = type
+    let resolvedData = data
+    if (type === 'characterGrid' || type === 'characterExtract' || type === 'characterManager') {
+      const mode =
+        type === 'characterGrid' ? 'design' :
+        type === 'characterExtract' ? 'extract' : 'registry'
+      resolvedType = 'characterAsset'
+      resolvedData = { ...data, mode }
+    }
+
     const newNode: Node = {
       id,
-      type,
+      type: resolvedType,
       position,
-      data: { ...data, label: data.label || type },
+      data: { ...resolvedData, label: resolvedData.label || resolvedType },
     }
     set({ nodes: [...get().nodes, newNode] })
+    get().scheduleAutoSave()
     return id
   },
 
@@ -187,6 +217,7 @@ export const useFlowStore = create<FlowState>((set, get) => ({
       edges: get().edges.filter((e) => e.source !== id && e.target !== id),
       selectedNodeId: get().selectedNodeId === id ? null : get().selectedNodeId,
     })
+    get().scheduleAutoSave()
   },
 
   updateNodeData: (id, data) => {
@@ -199,6 +230,10 @@ export const useFlowStore = create<FlowState>((set, get) => ({
 
   selectNode: (id) => {
     set({ selectedNodeId: id })
+  },
+
+  setHighlight: (ids) => {
+    set({ highlightedNodeIds: ids ? new Set(ids) : new Set() })
   },
 
   clearAll: () => {
@@ -381,3 +416,12 @@ export const useFlowStore = create<FlowState>((set, get) => ({
     }, AUTO_SAVE_DELAY)
   },
 }))
+
+// ── DEV-only test hook ──
+// Exposes the Zustand store on `window.__PRISM_FLOW__` so Playwright /
+// manual QA can drive store actions (e.g. `onConnect`, `addNode`) without
+// having to simulate React Flow's complex pointer-event chain. Stripped
+// from production by Vite's `import.meta.env.DEV` flag.
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  ;(window as unknown as { __PRISM_FLOW__: typeof useFlowStore }).__PRISM_FLOW__ = useFlowStore
+}

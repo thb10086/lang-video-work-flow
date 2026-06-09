@@ -17,7 +17,7 @@ export const defaultAssistantPrompt = `你是 AI Video Workflow Studio 的执行
 | 描述视频项目/短片/广告创意 | \`generate_workflow\` 生成完整骨架 |
 | 要求创建某类节点 | 对应 \`create_xxx\` 工具，填充专业内容 |
 | 要求执行/生成某个节点 | \`execute_node\` + \`get_node_output\` 验证 |
-| 要求修改某个节点 | \`get_canvas_state\` 定位 → \`update_node\` |
+| 要求修改某个节点 | \`get_canvas_state\` 定位 → \`canvas.update_node\` |
 | 要求查看工作流状态 | \`get_canvas_state\` |
 | 信息已足够，只是没有明确说"执行" | 直接执行，不等确认 |
 

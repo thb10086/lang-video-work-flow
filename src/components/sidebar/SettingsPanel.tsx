@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Settings, Check } from 'lucide-react'
 import { useSettingsStore } from '@/store/settingsStore'
 import { useBackendModels } from '@/hooks/useBackendModels'
+import { DEFAULT_VISION_ADAPTER } from '@/providers/modelDefaults'
 
 function SettingsPanel() {
   const {
@@ -9,8 +10,16 @@ function SettingsPanel() {
     defaultImageModel,
     defaultVideoModel,
     defaultLLMModel,
+    enableResponseBudget,
+    enablePromptCaching,
+    visionVerifyModel,
+    useBackendRuntime,
     setPollInterval,
     setDefaultModels,
+    setEnableResponseBudget,
+    setEnablePromptCaching,
+    setVisionVerifyModel,
+    setUseBackendRuntime,
   } = useSettingsStore()
 
   const [localPollInterval, setLocalPollInterval] = useState(String(pollInterval / 1000))
@@ -22,6 +31,13 @@ function SettingsPanel() {
   const imageModels = imageModelsRaw.map(m => ({ id: m.model_id, name: m.name, provider: m.provider }))
   const videoModels = videoModelsRaw.map(m => ({ id: m.model_id, name: m.name, provider: m.provider }))
   const textModels = textModelsRaw.map(m => ({ id: m.model_id, name: m.name, provider: m.provider }))
+
+  // Vision verify adapters are declared statically in code (see
+  // `src/providers/geminiVisionAdapter.ts`) — the backend whitelist mirrors
+  // this set. Adding an adapter = register + add id here.
+  const visionVerifyOptions: Array<{ id: string; name: string }> = [
+    { id: DEFAULT_VISION_ADAPTER, name: 'Gemini Vision (默认)' },
+  ]
 
   const handleSave = () => {
     const interval = Math.max(1, Number(localPollInterval) || 5) * 1000
@@ -113,6 +129,76 @@ function SettingsPanel() {
           ))}
         </select>
       </div>
+
+      <div className="pt-2 border-t border-border">
+        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Agent 优化</span>
+      </div>
+
+      {/* Vision Verify Model */}
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-muted-foreground">视觉校验模型</label>
+        <select
+          value={visionVerifyModel}
+          onChange={(e) => setVisionVerifyModel(e.target.value)}
+          className="w-full px-2.5 py-1.5 text-xs rounded-md border border-border bg-muted/30 focus:outline-none focus:ring-1 focus:ring-primary"
+        >
+          {visionVerifyOptions.map((opt) => (
+            <option key={opt.id} value={opt.id}>{opt.name}</option>
+          ))}
+        </select>
+        <p className="text-[10px] text-muted-foreground/60">
+          决定 verify_image_semantic + verify_task(useVisionVerify) 调用的 Vision 适配器
+        </p>
+      </div>
+
+      {/* Response Budget Toggle */}
+      <label className="flex items-start gap-2 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={enableResponseBudget}
+          onChange={(e) => setEnableResponseBudget(e.target.checked)}
+          className="mt-0.5 accent-primary"
+        />
+        <div className="flex-1">
+          <div className="text-xs font-medium">工具响应预算</div>
+          <p className="text-[10px] text-muted-foreground/60">
+            查询类工具默认返回精简字段；LLM 需要细节时显式传 response_format=&quot;detailed&quot;
+          </p>
+        </div>
+      </label>
+
+      {/* Prompt Caching Toggle */}
+      <label className="flex items-start gap-2 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={enablePromptCaching}
+          onChange={(e) => setEnablePromptCaching(e.target.checked)}
+          className="mt-0.5 accent-primary"
+        />
+        <div className="flex-1">
+          <div className="text-xs font-medium">提示词缓存（实验）</div>
+          <p className="text-[10px] text-muted-foreground/60">
+            将 system prompt 拆为多个 content 块，支持 Anthropic cache_control；非 Anthropic 网关会自动扁平化回字符串
+          </p>
+        </div>
+      </label>
+
+      {/* Backend Runtime Toggle (Phase 1 灰度开关) */}
+      <label className="flex items-start gap-2 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={useBackendRuntime}
+          onChange={(e) => setUseBackendRuntime(e.target.checked)}
+          className="mt-0.5 accent-primary"
+        />
+        <div className="flex-1">
+          <div className="text-xs font-medium">后端 Agent Runtime（实验）</div>
+          <p className="text-[10px] text-muted-foreground/60">
+            把 Agent 主循环交给后端 LangGraph 运行，前端通过 SSE 接收事件 + 反向 RPC 执行画布操作。
+            关闭则继续使用前端循环（兼容路径）。
+          </p>
+        </div>
+      </label>
 
       {/* Save Button */}
       <button

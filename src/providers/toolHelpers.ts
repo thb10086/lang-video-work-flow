@@ -41,22 +41,71 @@ export function resolveNodeNotFound(args: Record<string, unknown>): ToolCallResu
   }
 }
 
-export function getSmartPosition() {
+// ── Layout constants for Agent auto-placement ──
+// Waterfall (Pinterest-style) grid: distribute nodes into columns,
+// always placing the next node into the shortest column.
+const LAYOUT = {
+  ORIGIN_X: 100,
+  ORIGIN_Y: 100,
+  COL_WIDTH: 520,   // widest node (460) + horizontal gap (60)
+  ROW_GAP: 80,      // vertical gap between rows
+  MAX_COLS: 3,      // number of grid columns
+} as const
+
+/** Estimated rendered height per node type (px) — used to compute the
+ *  "bottom edge" of each column so subsequent nodes don't overlap. */
+const NODE_EST_HEIGHT: Record<string, number> = {
+  videoGen: 560,
+  imageGen: 530,
+  storyboard: 420,
+  characterGrid: 400,
+  sceneGrid: 400,
+  styleLock: 360,
+  characterManager: 360,
+  characterExtract: 360,
+  llmChat: 340,
+  videoStitch: 320,
+  imageEdit: 320,
+  continuityCheck: 320,
+  audioNode: 280,
+  textNode: 220,
+}
+const DEFAULT_NODE_HEIGHT = 360
+
+/**
+ * Waterfall auto-layout: scan all existing nodes to build per-column
+ * bottom-edge heights, then place the new node in the shortest column.
+ *
+ * @param nodeType - React Flow node type (e.g. 'videoGen'), used to
+ *   estimate the height footprint for future placement calculations.
+ */
+export function getSmartPosition(nodeType?: string) {
   const store = useFlowStore.getState()
   const nodes = store.nodes
-  if (nodes.length === 0) return { x: 100, y: 100 }
-  // Find bounding box of existing nodes, place new node below-right
-  let maxX = 0
-  let maxY = 0
+  const { ORIGIN_X, ORIGIN_Y, COL_WIDTH, ROW_GAP, MAX_COLS } = LAYOUT
+
+  if (nodes.length === 0) return { x: ORIGIN_X, y: ORIGIN_Y }
+
+  // Per-column "bottom edge" tracker
+  const colBottoms = new Array<number>(MAX_COLS).fill(ORIGIN_Y)
+
   for (const n of nodes) {
-    if (n.position.x + 300 > maxX) maxX = n.position.x + 300
-    if (n.position.y + 200 > maxY) maxY = n.position.y + 200
+    const col = Math.round((n.position.x - ORIGIN_X) / COL_WIDTH)
+    if (col < 0 || col >= MAX_COLS) continue  // node outside grid — skip
+    const h = NODE_EST_HEIGHT[n.type || ''] || DEFAULT_NODE_HEIGHT
+    const bottom = n.position.y + h + ROW_GAP
+    if (bottom > colBottoms[col]) colBottoms[col] = bottom
   }
-  // Place in a new row below existing nodes, with some offset
-  const col = nodes.length % 4
+
+  // Find the shortest column
+  let bestCol = 0
+  for (let i = 1; i < MAX_COLS; i++) {
+    if (colBottoms[i] < colBottoms[bestCol]) bestCol = i
+  }
+
   return {
-    x: 100 + col * 380,
-    y: maxY + 60,
+    x: ORIGIN_X + bestCol * COL_WIDTH,
+    y: colBottoms[bestCol],
   }
 }
 

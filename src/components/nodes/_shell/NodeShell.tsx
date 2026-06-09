@@ -13,7 +13,7 @@
  *    so the user can click-to-connect without learning Handle drag.
  */
 
-import { type ReactNode, type MouseEvent } from 'react'
+import { type ReactNode, type MouseEvent, useEffect, useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
 
 export interface NodeShellProps {
@@ -29,6 +29,8 @@ export interface NodeShellProps {
   width?: number
   /** If true, show a subtle executing glow ring. */
   executing?: boolean
+  /** Node execution status — drives transient success/error animations. */
+  status?: 'idle' | 'pending' | 'running' | 'success' | 'error' | string
   /** Optional side buttons for ghost-style click-to-connect. */
   ghostConnect?: {
     left?: boolean
@@ -47,13 +49,42 @@ export default function NodeShell({
   children,
   width = 460,
   executing,
+  status,
   ghostConnect,
   onGhostConnect,
   className = '',
 }: NodeShellProps) {
+  // ── Mount animation (run once on first render) ──
+  const mountedRef = useRef(false)
+  useEffect(() => { mountedRef.current = true }, [])
+
+  // ── Transient status animation (success flash / error shake) ──
+  // We watch the status prop; on transitions we set a one-shot class that
+  // expires after the animation finishes. Avoids layout reflow by only
+  // animating transform.
+  const [transientAnim, setTransientAnim] = useState<string>('')
+  const lastStatusRef = useRef<string | undefined>(status)
+  useEffect(() => {
+    const prev = lastStatusRef.current
+    lastStatusRef.current = status
+    if (prev === status) return
+    if (status === 'success' && prev && prev !== 'success') {
+      setTransientAnim('anim-success-flash')
+      const t = window.setTimeout(() => setTransientAnim(''), 450)
+      return () => window.clearTimeout(t)
+    }
+    if (status === 'error' && prev && prev !== 'error') {
+      setTransientAnim('anim-error-shake')
+      const t = window.setTimeout(() => setTransientAnim(''), 450)
+      return () => window.clearTimeout(t)
+    }
+  }, [status])
+
+  const mountClass = mountedRef.current ? '' : 'anim-node-mount'
+
   return (
     <div
-      className={`libtv-node-wrapper relative ${className}`}
+      className={`libtv-node-wrapper relative ${mountClass} ${transientAnim} ${className}`}
       style={{ width }}
     >
       {/* Label row — sits OUTSIDE the node card, LibTV-style */}
@@ -67,15 +98,20 @@ export default function NodeShell({
         {labelRight && <span className="ml-auto">{labelRight}</span>}
       </div>
 
-      {/* Card body */}
+      {/* Card body — React Flow interaction classes:
+         `nowheel` → scroll wheel won't zoom canvas (lets lists/textareas scroll)
+         `nopan`   → pointer moves won't pan canvas (lets text selection & sliders work)
+         NO `nodrag` on the card itself — blank areas of the card should
+         trigger a node drag (LibTV behavior). `nodrag` is applied *only* to
+         concrete interactive children (buttons, inputs, sliders, popovers). */}
       <div
-        className={`libtv-node ${executing ? 'libtv-node--executing' : ''}`}
+        className={`libtv-node nowheel nopan ${executing ? 'libtv-node--executing' : ''}`}
       >
         {/* Ghost + connect buttons (hover reveal) */}
         {ghostConnect?.left && (
           <button
             type="button"
-            className="libtv-ghost-plus libtv-ghost-plus--left"
+            className="libtv-ghost-plus libtv-ghost-plus--left nodrag"
             onClick={(e) => onGhostConnect?.('left', e)}
             aria-label="Connect upstream node"
           >
@@ -85,7 +121,7 @@ export default function NodeShell({
         {ghostConnect?.right && (
           <button
             type="button"
-            className="libtv-ghost-plus libtv-ghost-plus--right"
+            className="libtv-ghost-plus libtv-ghost-plus--right nodrag"
             onClick={(e) => onGhostConnect?.('right', e)}
             aria-label="Connect downstream node"
           >

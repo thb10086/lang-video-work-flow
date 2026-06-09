@@ -9,9 +9,9 @@ import { createElement } from 'react'
 import {
   User, Mountain, ImageIcon, Video, FileText, Music,
   MessageSquare, UserCheck, Film, Users, Palette, ScanEye,
-  Clapperboard, Pencil,
+  Clapperboard, Pencil, GitBranch, LayoutGrid,
 } from 'lucide-react'
-import { DEFAULT_IMAGE_MODEL, DEFAULT_VIDEO_MODEL, DEFAULT_VIDEO_SIZE, DEFAULT_VIDEO_DURATION, DEFAULT_VIDEO_RESOLUTION } from '@/providers/modelDefaults'
+import { DEFAULT_IMAGE_MODEL, DEFAULT_VIDEO_MODEL, DEFAULT_LLM_MODEL, DEFAULT_AUDIO_MODEL, DEFAULT_VIDEO_SIZE, DEFAULT_VIDEO_DURATION, DEFAULT_VIDEO_RESOLUTION } from '@/providers/modelDefaults'
 
 export interface NodeDefinition {
   type: string
@@ -43,6 +43,22 @@ export const NODE_REGISTRY: NodeDefinition[] = [
     defaultData: { label: '场景九宫图', name: '', description: '', style: 'cinematic', mood: 'dramatic', outputImage: null, status: 'idle' },
   },
   {
+    type: 'keyframeGrid', label: '分镜拼贴图', description: '一张图含 4/6/9 帧拼贴（剧情推演 / 动作分解 / 多机位）',
+    icon: LayoutGrid, category: '设计', keywords: ['分镜', '关键帧', 'keyframe', 'storyboard', '拼贴', '九宫图', '推演'],
+    cardColor: 'text-fuchsia-500 bg-fuchsia-50 border-fuchsia-200 dark:bg-fuchsia-950/40 dark:border-fuchsia-800/50',
+    defaultData: {
+      label: '分镜拼贴图',
+      shotName: '',
+      shotDescription: '',
+      subType: 'time-progression',
+      layout: '2x3',
+      style: 'cinematic',
+      mood: 'dramatic',
+      outputImage: null,
+      status: 'idle',
+    },
+  },
+  {
     type: 'imageGen', label: '图片生成', description: '多模型图片生成',
     icon: ImageIcon, category: '生成', keywords: ['图片', '图像', 'image', 'generate', '生图'],
     cardColor: 'text-blue-500 bg-blue-50 border-blue-200 dark:bg-blue-950/40 dark:border-blue-800/50',
@@ -64,13 +80,13 @@ export const NODE_REGISTRY: NodeDefinition[] = [
     type: 'audioNode', label: '音频生成', description: 'TTS 语音合成',
     icon: Music, category: '生成', keywords: ['音频', '音乐', 'audio', 'tts', '语音'],
     cardColor: 'text-orange-500 bg-orange-50 border-orange-200 dark:bg-orange-950/40 dark:border-orange-800/50',
-    defaultData: { label: '音频生成', model: 'elevenlabs', text: '', voice: 'default', outputAudio: null, status: 'idle' },
+    defaultData: { label: '音频生成', model: DEFAULT_AUDIO_MODEL, text: '', voice: 'default', outputAudio: null, status: 'idle' },
   },
   {
     type: 'llmChat', label: 'LLM 对话', description: '大模型对话推理',
     icon: MessageSquare, category: '工具', keywords: ['llm', '对话', 'chat', 'ai', '大模型'],
     cardColor: 'text-violet-500 bg-violet-50 border-violet-200 dark:bg-violet-950/40 dark:border-violet-800/50',
-    defaultData: { label: 'LLM 对话', model: 'gemini-3.1-pro-preview', systemPrompt: '', userInput: '', response: '', status: 'idle' },
+    defaultData: { label: 'LLM 对话', model: DEFAULT_LLM_MODEL, systemPrompt: '', userInput: '', response: '', status: 'idle' },
   },
   {
     type: 'characterExtract', label: '角色提取', description: '视频中提取角色形象',
@@ -112,7 +128,13 @@ export const NODE_REGISTRY: NodeDefinition[] = [
     type: 'imageEdit', label: '图片编辑', description: '编辑 / 换背景 / 局部修改',
     icon: Pencil, category: '工具', keywords: ['编辑', '修改', 'edit', '换背景'],
     cardColor: 'text-orange-500 bg-orange-50 border-orange-200 dark:bg-orange-950/40 dark:border-orange-800/50',
-    defaultData: { label: '图片编辑', model: DEFAULT_IMAGE_MODEL, inputImage: null, editPrompt: '', outputImage: null, status: 'idle' },
+    defaultData: { label: '图片编辑', model: DEFAULT_IMAGE_MODEL, inputImage: null, editInstruction: '', outputImage: null, status: 'idle' },
+  },
+  {
+    type: 'timeline', label: '时间轴', description: '多轨道时间轴 — 计算剪切点 + 输出 cuts',
+    icon: GitBranch, category: '工具', keywords: ['时间轴', '剪辑', 'timeline', 'cuts', '剪切'],
+    cardColor: 'text-indigo-500 bg-indigo-50 border-indigo-200 dark:bg-indigo-950/40 dark:border-indigo-800/50',
+    defaultData: { label: '时间轴', videoClips: [], audioClips: [], outputCuts: null, status: 'idle' },
   },
 ]
 

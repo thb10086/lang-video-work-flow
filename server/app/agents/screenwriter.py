@@ -39,7 +39,7 @@ SCREENWRITER_SYSTEM = """You are a professional screenwriter for AI video produc
 
 def _get_llm() -> ChatOpenAI:
     return ChatOpenAI(
-        model="gemini-3.1-pro-preview",
+        model=settings.DEFAULT_LLM_MODEL,
         base_url=f"{settings.LLM_BASE_URL}/v1",
         api_key=settings.LLM_API_KEY,
         temperature=0.8,
